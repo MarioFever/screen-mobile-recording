@@ -28,14 +28,22 @@ async function setupOffscreenDocument(path) {
 
 let creating; // Promise keeper
 let isRecording = false;
+let recordingTabId = null;
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === 'START_RECORDING_REQUEST') {
-    startCapture(message.tabId, message.hostDPR);
+    startCapture(message.tabId, message.showNotch);
     isRecording = true;
+    recordingTabId = message.tabId;
   } else if (message.type === 'STOP_RECORDING_REQUEST') {
     chrome.runtime.sendMessage({ target: 'offscreen', type: 'STOP_RECORDING' });
     isRecording = false;
+    
+    // Clean up UI in the recorded tab
+    if (recordingTabId) {
+      chrome.tabs.sendMessage(recordingTabId, { type: 'RECORDING_STOPPED' }).catch(() => {});
+      recordingTabId = null;
+    }
   } else if (message.type === 'GET_RECORDING_STATE') {
     sendResponse({ isRecording });
   } else if (message.type === 'DOWNLOAD_RECORDING') {
@@ -69,7 +77,7 @@ async function startCapture(tabId, showNotch = true) {
     
     const dimensions = results[0].result;
     console.log('Detected dimensions:', dimensions);
-
+    
     // 2. Get Media Stream ID
     const streamId = await chrome.tabCapture.getMediaStreamId({
       targetTabId: tabId
