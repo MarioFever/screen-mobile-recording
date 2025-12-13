@@ -75,7 +75,17 @@ async function startCapture(tabId) {
       targetTabId: tabId
     });
 
-    // 3. Setup Offscreen Doc
+    // 3. Setup Offscreen Doc (Resetting it to ensure fresh state)
+    // Check if offscreen exists and close it to ensure fresh state
+    const existingContexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT']
+    });
+    
+    if (existingContexts.length > 0) {
+      await chrome.offscreen.closeDocument();
+    }
+    
+    // Create fresh document
     await setupOffscreenDocument('offscreen.html');
 
     // 4. Send start message to offscreen
