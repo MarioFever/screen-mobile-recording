@@ -63,24 +63,25 @@ async function startRecording(data) {
       const videoWidth = sourceVideo.videoWidth;
       const videoHeight = sourceVideo.videoHeight;
       
-      // Calculate Crop Size based on Emulated DPR
-      let cropW = width * dpr;
-      let cropH = height * dpr;
+      // Auto-Fit Strategy:
+      // We assume the mobile view fills either the height or width of the tab (Fit to Window).
+      // Since mobile is portrait and tab is usually landscape, it likely fills the HEIGHT.
       
-      // Safety check: If emulated resolution is LARGER than actual video stream
-      // (e.g. user zoomed out, or non-retina screen handling), fallback to fitting the video.
-      if (cropW > videoWidth || cropH > videoHeight) {
-          // If the difference is huge, maybe dpr 1 is better?
-          // Let's try to just crop the logical width if high-res fails
-          if (width <= videoWidth) {
-              cropW = width;
-              cropH = height;
-          } else {
-             // Fallback: just use full video? No, keep aspect ratio?
-             // Let's stick to center crop of whatever is available
-             cropW = Math.min(cropW, videoWidth);
-             cropH = Math.min(cropH, videoHeight);
-          }
+      const targetRatio = width / height;
+      const videoRatio = videoWidth / videoHeight;
+      
+      let cropW, cropH;
+      
+      if (videoRatio > targetRatio) {
+        // Video is wider than target -> Gray bars on left/right
+        // Content fills the height
+        cropH = videoHeight;
+        cropW = cropH * targetRatio;
+      } else {
+        // Video is taller than target -> Gray bars on top/bottom
+        // Content fills the width
+        cropW = videoWidth;
+        cropH = cropW / targetRatio;
       }
       
       const startX = (videoWidth - cropW) / 2;
@@ -90,10 +91,14 @@ async function startRecording(data) {
       processContext.fillStyle = '#000';
       processContext.fillRect(0, 0, processCanvas.width, processCanvas.height);
       
+      // Draw with high quality
+      processContext.imageSmoothingEnabled = true;
+      processContext.imageSmoothingQuality = 'high';
+      
       processContext.drawImage(
         sourceVideo, 
         startX, startY, cropW, cropH, // Source crop
-        0, 0, processCanvas.width, processCanvas.height // Destination (Scaled to logical)
+        0, 0, processCanvas.width, processCanvas.height // Destination
       );
     };
     
