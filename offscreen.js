@@ -44,16 +44,17 @@ async function startRecording(data) {
     processCanvas = document.getElementById('processCanvas');
     processContext = processCanvas.getContext('2d', { alpha: false });
 
-    // Handle High DPI displays (Host System Scaling)
-    // We use the passed devicePixelRatio which should be the HOST system dpr from popup
-    // or fallback to offscreen window's dpr.
-    const dpr = devicePixelRatio || window.devicePixelRatio || 1;
+    // Use the EMULATED device pixel ratio passed from background (e.g. 3 for iPhone)
+    // This assumes tabCapture captures at the full emulated resolution.
+    let dpr = devicePixelRatio || 1;
     
-    console.log(`Logical size: ${width}x${height}, DPR: ${dpr}`);
+    // Set canvas to the TARGET LOGICAL SIZE (e.g. 430x932) requested by user
+    // We will draw the high-res crop into this canvas, effectively downscaling it
+    // to the requested resolution.
+    processCanvas.width = width;
+    processCanvas.height = height;
 
-    // Set canvas to the scaled size to capture full quality
-    processCanvas.width = width * dpr;
-    processCanvas.height = height * dpr;
+    console.log(`Target Output: ${width}x${height}, Crop DPR: ${dpr}`);
 
     // 4. Draw loop
     const draw = () => {
@@ -62,11 +63,28 @@ async function startRecording(data) {
       const videoWidth = sourceVideo.videoWidth;
       const videoHeight = sourceVideo.videoHeight;
       
-      const targetW = width * dpr;
-      const targetH = height * dpr;
+      // Calculate Crop Size based on Emulated DPR
+      let cropW = width * dpr;
+      let cropH = height * dpr;
       
-      const startX = (videoWidth - targetW) / 2;
-      const startY = (videoHeight - targetH) / 2;
+      // Safety check: If emulated resolution is LARGER than actual video stream
+      // (e.g. user zoomed out, or non-retina screen handling), fallback to fitting the video.
+      if (cropW > videoWidth || cropH > videoHeight) {
+          // If the difference is huge, maybe dpr 1 is better?
+          // Let's try to just crop the logical width if high-res fails
+          if (width <= videoWidth) {
+              cropW = width;
+              cropH = height;
+          } else {
+             // Fallback: just use full video? No, keep aspect ratio?
+             // Let's stick to center crop of whatever is available
+             cropW = Math.min(cropW, videoWidth);
+             cropH = Math.min(cropH, videoHeight);
+          }
+      }
+      
+      const startX = (videoWidth - cropW) / 2;
+      const startY = (videoHeight - cropH) / 2;
       
       // Draw black background first
       processContext.fillStyle = '#000';
@@ -74,8 +92,8 @@ async function startRecording(data) {
       
       processContext.drawImage(
         sourceVideo, 
-        startX, startY, targetW, targetH, // Source crop
-        0, 0, targetW, targetH // Destination
+        startX, startY, cropW, cropH, // Source crop
+        0, 0, processCanvas.width, processCanvas.height // Destination (Scaled to logical)
       );
     };
     
