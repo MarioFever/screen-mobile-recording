@@ -32,39 +32,39 @@ let controlsWindowId = null;
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === 'START_RECORDING_REQUEST') {
-    // Open small controls window
-    // Calculate position based on current window to ensure it's on the same screen
-    const currentWindow = await chrome.windows.getCurrent();
-    const systemDisplayInfo = await new Promise(r => chrome.system.display.getInfo(r)).catch(() => []);
+    // Inject the PiP controller script which will:
+    // 1. Show overlay "Click to start"
+    // 2. Open PiP window on click
+    // 3. Send back 'PIP_OPENED_START_RECORDING'
     
-    let left = currentWindow.left + currentWindow.width - 220; // Default to top-right of current window
-    let top = currentWindow.top + 80;
-
-    // Validate bounds if possible using systemDisplayInfo (optional refinement)
-    // For now, relying on relative window position is a good heuristic for "same screen"
-    
-    chrome.windows.create({
-      url: 'controls.html',
-      type: 'popup',
-      width: 200,
-      height: 80,
-      left: Math.round(left),
-      top: Math.round(top),
-      focused: true
-    }).then(win => {
-      controlsWindowId = win.id;
+    // Store params for when we actually start
+    await chrome.storage.local.set({ 
+      pendingRecording: { 
+        tabId: message.tabId, 
+        showNotch: message.showNotch 
+      }
     });
 
-    startCapture(message.tabId, message.showNotch);
-    isRecording = true;
+    chrome.scripting.executeScript({
+      target: { tabId: message.tabId },
+      files: ['pip-controller.js']
+    });
+    
+  } else if (message.type === 'PIP_OPENED_START_RECORDING') {
+    // Now actually start recording
+    const data = await chrome.storage.local.get('pendingRecording');
+    if (data.pendingRecording) {
+      startCapture(data.pendingRecording.tabId, data.pendingRecording.showNotch);
+      isRecording = true;
+      // Clear pending
+      chrome.storage.local.remove('pendingRecording');
+    }
+
   } else if (message.type === 'STOP_RECORDING_REQUEST') {
     chrome.runtime.sendMessage({ target: 'offscreen', type: 'STOP_RECORDING' });
     isRecording = false;
+    // PiP window closes itself via script
     
-    if (controlsWindowId) {
-      chrome.windows.remove(controlsWindowId).catch(() => {});
-      controlsWindowId = null;
-    }
   } else if (message.type === 'GET_RECORDING_STATE') {
     sendResponse({ isRecording });
   } else if (message.type === 'DOWNLOAD_RECORDING') {
