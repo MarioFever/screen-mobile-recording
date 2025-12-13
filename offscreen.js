@@ -82,9 +82,19 @@ async function startRecording(data) {
     canvasStream = processCanvas.captureStream(30); // 30 FPS
     
     // 6. Start MediaRecorder
+    // Try to use MP4 if supported, otherwise fallback to WebM
+    let mimeType = 'video/webm;codecs=vp9';
+    if (MediaRecorder.isTypeSupported('video/mp4')) {
+      mimeType = 'video/mp4';
+    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=h264')) {
+      mimeType = 'video/webm;codecs=h264';
+    }
+
+    console.log('Using mimeType:', mimeType);
+
     // Use higher bitrate for quality
     mediaRecorder = new MediaRecorder(canvasStream, { 
-      mimeType: 'video/webm;codecs=vp9',
+      mimeType: mimeType,
       videoBitsPerSecond: 5000000 // 5Mbps
     });
     recordedChunks = [];
@@ -96,14 +106,17 @@ async function startRecording(data) {
     };
 
     mediaRecorder.onstop = () => {
-      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const blob = new Blob(recordedChunks, { type: mimeType });
       const url = URL.createObjectURL(blob);
+      
+      // Determine extension based on mimeType
+      const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
       
       // Send to background to download via chrome.downloads API
       chrome.runtime.sendMessage({
         type: 'DOWNLOAD_RECORDING',
         url: url,
-        filename: `mobile-recording-${new Date().toISOString().replace(/:/g, '-').split('.')[0]}.webm`
+        filename: `mobile-recording-${new Date().toISOString().replace(/:/g, '-').split('.')[0]}.${ext}`
       });
       
       statusDiv.textContent = 'Processing download...';
