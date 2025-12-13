@@ -32,17 +32,6 @@ let recordingTabId = null;
 let recordingStartTime = null;
 let timerInterval = null;
 
-// Force icon update on startup/install to bypass cache
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.action.setIcon({
-    path: {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    }
-  });
-});
-
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === 'START_RECORDING_REQUEST') {
     startCapture(message.tabId, message.showNotch);
