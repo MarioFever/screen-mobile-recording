@@ -43,17 +43,14 @@ async function startRecording(data) {
 
     let dpr = devicePixelRatio || 1;
     
-    // Configuración de dimensiones lógicas
     const screenLogicalW = width;
     const screenLogicalH = height;
 
-    // Configuración del Marco (Estilo iPhone Pro Silver)
-    const bezel = Math.round(screenLogicalW * 0.045); // ~4.5% bezel
+    const bezel = Math.round(screenLogicalW * 0.045);
     const cornerRadius = Math.round(screenLogicalW * 0.13);
     const homeIndicatorW = Math.round(screenLogicalW * 0.35);
     const homeIndicatorH = Math.round(5 * (dpr/3));
     
-    // Dimensiones del Marco
     const frameLogicalW = screenLogicalW + (bezel * 2);
     const frameLogicalH = screenLogicalH + (bezel * 2);
 
@@ -72,7 +69,6 @@ async function startRecording(data) {
       ctx.closePath();
     }
 
-    // Helper para dibujar iconos de estado
     function drawSignal(ctx, x, y, w, h) {
         const gap = w * 0.2;
         const barW = (w - (3 * gap)) / 4;
@@ -102,20 +98,21 @@ async function startRecording(data) {
 
     function drawBattery(ctx, x, y, w, h) {
         ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 2; // Grosor de línea ajustado para no ser muy grueso
-        // Body
+        ctx.lineWidth = 2;
         roundRect(ctx, x, y, w, h, h/3);
-        ctx.stroke(); // Solo borde
-        // Fill (capacidad)
+        ctx.stroke();
         ctx.fillStyle = '#FFFFFF';
         roundRect(ctx, x + 2, y + 2, w - 4, h - 4, h/4);
         ctx.fill();
-        // Cap (el piquito)
         ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
         ctx.arc(x + w + 2, y + h/2, h/4, Math.PI * 0.5, Math.PI * 1.5, true);
         ctx.fill();
     }
+
+    // Helper canvas for color sampling
+    const colorCanvas = new OffscreenCanvas(1, 1);
+    const colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
 
     const draw = () => {
       if (sourceVideo.paused || sourceVideo.ended) return;
@@ -123,7 +120,6 @@ async function startRecording(data) {
       const videoWidth = sourceVideo.videoWidth;
       const videoHeight = sourceVideo.videoHeight;
       
-      // Auto-Fit Crop
       const targetRatio = screenLogicalW / screenLogicalH;
       const videoRatio = videoWidth / videoHeight;
       let cropW, cropH;
@@ -136,6 +132,12 @@ async function startRecording(data) {
       }
       const cropX = (videoWidth - cropW) / 2;
       const cropY = (videoHeight - cropH) / 2;
+      
+      // --- Sample Background Color ---
+      // Get color from the top-center of the actual video content
+      colorCtx.drawImage(sourceVideo, cropX + (cropW/2), cropY, 1, 1, 0, 0, 1, 1);
+      const [r, g, b] = colorCtx.getImageData(0, 0, 1, 1).data;
+      const navColor = `rgb(${r}, ${g}, ${b})`;
       
       const ctx = processContext;
       const scale = dpr;
@@ -150,32 +152,28 @@ async function startRecording(data) {
       ctx.clearRect(0, 0, frameW, frameH);
 
       // --- Botones Laterales (Silver) ---
-      // Dibujamos antes del marco principal para que queden "detrás" o integrados
-      ctx.fillStyle = '#D1D1D6'; // Silver claro
-      // Izquierda (Silent, Vol+, Vol-)
+      ctx.fillStyle = '#D1D1D6';
       roundRect(ctx, -2*scale, 100*scale, 6*scale, 20*scale, 2*scale);
       roundRect(ctx, -2*scale, 140*scale, 6*scale, 45*scale, 2*scale);
       roundRect(ctx, -2*scale, 200*scale, 6*scale, 45*scale, 2*scale);
-      // Derecha (Power)
       roundRect(ctx, frameW - 4*scale, 160*scale, 6*scale, 70*scale, 2*scale);
       ctx.fill();
       
       // --- Marco Exterior (Chasis Metálico Silver) ---
-      // Degradado complejo para simular metal redondeado
-      const grad = ctx.createLinearGradient(0, 0, frameW, 0); // Horizontal gradient looks better for side sheen
-      grad.addColorStop(0, '#8E8E93');   // Darker edge
-      grad.addColorStop(0.05, '#E5E5EA'); // Highlight
-      grad.addColorStop(0.2, '#D1D1D6');  // Mid silver
+      const grad = ctx.createLinearGradient(0, 0, frameW, 0);
+      grad.addColorStop(0, '#8E8E93');
+      grad.addColorStop(0.05, '#E5E5EA');
+      grad.addColorStop(0.2, '#D1D1D6');
       grad.addColorStop(0.8, '#D1D1D6');
-      grad.addColorStop(0.95, '#E5E5EA'); // Highlight
-      grad.addColorStop(1, '#8E8E93');   // Darker edge
+      grad.addColorStop(0.95, '#E5E5EA');
+      grad.addColorStop(1, '#8E8E93');
       
       ctx.fillStyle = grad;
       roundRect(ctx, 0, 0, frameW, frameH, radius + bezelSize/2); 
       ctx.fill();
       
       // --- Bisel Negro Interno ---
-      const rimWidth = 3.5 * scale; // Grosor del borde metálico visible frontalmente
+      const rimWidth = 3.5 * scale;
       ctx.fillStyle = '#000000'; 
       roundRect(
         ctx, 
@@ -191,71 +189,58 @@ async function startRecording(data) {
       ctx.save();
       ctx.translate(bezelSize, bezelSize);
       
-      // Máscara de pantalla (Esquinas redondeadas internas)
       const innerRadius = radius - (bezelSize - rimWidth); 
       roundRect(ctx, 0, 0, screenW, screenH, innerRadius);
       ctx.clip();
       
-      // Definir altura de la barra superior (Status Bar Area)
-      // Ajustamos para que cubra la isla dinámica y un poco más
       const statusBarHeight = 50 * scale; 
       
-      // 1. Dibujar Fondo de Barra Superior (Negro/Oscuro)
-      ctx.fillStyle = '#000000'; // Negro sólido para ocultar notch
+      // 1. Dibujar Fondo de Barra Superior (Color muestreado)
+      ctx.fillStyle = navColor; 
       ctx.fillRect(0, 0, screenW, statusBarHeight);
       
-      // 2. Dibujar Video (Desplazado hacia abajo y reescalado para ajustar)
-      // Esto evita que el notch tape contenido del video
+      // 2. Dibujar Video
       const videoDestH = screenH - statusBarHeight;
       
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(
         sourceVideo, 
-        cropX, cropY, cropW, cropH, // Source (Full video)
-        0, statusBarHeight, screenW, videoDestH // Destination (Below status bar)
+        cropX, cropY, cropW, cropH, 
+        0, statusBarHeight, screenW, videoDestH 
       );
       
       // --- Barra de Estado (Status Bar) ---
-      // Hora (Izquierda)
       const now = new Date();
-      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }); 
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
       
-      const textY = statusBarHeight * 0.65; // Centrado verticalmente en la barra
+      const textY = statusBarHeight * 0.65;
       
       ctx.fillStyle = '#FFFFFF';
       ctx.font = `600 ${15 * scale}px -apple-system, BlinkMacSystemFont, sans-serif`;
       ctx.textAlign = 'center';
       ctx.fillText(timeStr, 50 * scale, textY); 
       
-      // Iconos (Derecha)
       const iconY = textY - (11 * scale);
       const rightMargin = screenW - (25 * scale);
       
-      // Battery
       drawBattery(ctx, rightMargin - (25*scale), iconY, 22*scale, 11*scale);
-      
-      // WiFi
       drawWifi(ctx, rightMargin - (55*scale), iconY - (2*scale), 16*scale);
-      
-      // Signal
       drawSignal(ctx, rightMargin - (80*scale), iconY, 17*scale, 11*scale);
 
       ctx.restore();
       
       // --- Dynamic Island / Notch (Negro Puro) ---
-      // Se dibuja encima de todo por si acaso, aunque el fondo ya es negro
-      const notchW = screenW * 0.3; 
-      const notchH = 35 * scale;    
+      const notchW = screenW * 0.3;
+      const notchH = 35 * scale;
       const notchX = (frameW - notchW) / 2;
-      const notchY = bezelSize + (12 * scale); 
+      const notchY = bezelSize + (12 * scale);
       
       ctx.fillStyle = '#000000';
       roundRect(ctx, notchX, notchY, notchW, notchH, notchH/2);
       ctx.fill();
       
-      // Lente de la cámara
-      ctx.fillStyle = '#111111'; // Apenas visible sobre negro
+      ctx.fillStyle = '#1A1A1A';
       ctx.beginPath();
       ctx.arc(notchX + notchW - (12*scale), notchY + notchH/2, 6*scale, 0, Math.PI*2);
       ctx.fill();
@@ -264,9 +249,9 @@ async function startRecording(data) {
       const hiW = homeIndicatorW * scale;
       const hiH = homeIndicatorH * scale;
       const hiX = (frameW - hiW) / 2;
-      const hiY = frameH - bezelSize - (8 * scale); // Pegado abajo
+      const hiY = frameH - bezelSize - (8 * scale);
       
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; // Blanco brillante
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
       roundRect(ctx, hiX, hiY, hiW, hiH, hiH/2);
       ctx.fill();
     };
