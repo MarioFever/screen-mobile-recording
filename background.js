@@ -138,8 +138,34 @@ async function startCapture(tabId, showNotch = true) {
     
     const dimensions = results[0].result;
     console.log('Detected dimensions:', dimensions);
+
+    // 2. Attach Debugger to Clean UI (Remove Tooltips/Rulers)
+    // We replicate the current exact dimensions into the debugger emulation
+    // This "locks" the view but removes the DevTools overlay artifacts.
+    try {
+      await chrome.debugger.attach({ tabId: tabId }, "1.3");
+      
+      await chrome.debugger.sendCommand({ tabId: tabId }, "Emulation.setDeviceMetricsOverride", {
+        width: dimensions.width,
+        height: dimensions.height,
+        deviceScaleFactor: dimensions.devicePixelRatio,
+        mobile: true,
+        fitWindow: false 
+      });
+      
+      // Enable touch
+      await chrome.debugger.sendCommand({ tabId: tabId }, "Emulation.setTouchEmulationEnabled", {
+        enabled: true
+      });
+      
+      // Wait a moment for layout settle
+      await new Promise(r => setTimeout(r, 300));
+      
+    } catch (dbgErr) {
+      console.warn("Debugger attach failed or rejected (maybe already attached?):", dbgErr);
+    }
     
-    // 2. Get Media Stream ID
+    // 3. Get Media Stream ID
     const streamId = await chrome.tabCapture.getMediaStreamId({
       targetTabId: tabId
     });
