@@ -35,26 +35,52 @@ async function startRecording(data) {
       }
     });
 
-    // 2. Setup video element to play the stream (needed for canvas drawing)
+    // 2. Setup video element to play the stream
     sourceVideo = document.getElementById('sourceVideo');
     sourceVideo.srcObject = stream;
     await sourceVideo.play();
 
-    // 3. Setup Canvas for cropping
+    // 3. Setup Canvas
     processCanvas = document.getElementById('processCanvas');
-    processContext = processCanvas.getContext('2d', { alpha: false });
+    processContext = processCanvas.getContext('2d', { alpha: true }); // Enable alpha for transparency effects
 
-    // Use the EMULATED device pixel ratio passed from background (e.g. 3 for iPhone)
-    // This assumes tabCapture captures at the full emulated resolution.
+    // Emulated DPR
     let dpr = devicePixelRatio || 1;
     
-    // Set canvas to the TARGET LOGICAL SIZE (e.g. 430x932) requested by user
-    // We will draw the high-res crop into this canvas, effectively downscaling it
-    // to the requested resolution.
-    processCanvas.width = width;
-    processCanvas.height = height;
+    // Calculate Logical Sizes
+    const screenLogicalW = width;
+    const screenLogicalH = height;
 
-    console.log(`Target Output: ${width}x${height}, Crop DPR: ${dpr}`);
+    // Frame configuration (Modern iPhone style)
+    // Scale bezels based on device size. Roughly 4% of width.
+    const bezel = Math.round(screenLogicalW * 0.05); 
+    const cornerRadius = Math.round(screenLogicalW * 0.12); // ~12% for rounded corners
+    const homeIndicatorW = Math.round(screenLogicalW * 0.35);
+    const homeIndicatorH = Math.round(5 * (dpr/3)); // Scale thickness
+    const homeIndicatorY = Math.round(screenLogicalH - 15);
+
+    // Frame Dimensions (Logical)
+    const frameLogicalW = screenLogicalW + (bezel * 2);
+    const frameLogicalH = screenLogicalH + (bezel * 2);
+
+    // Canvas Size (Physical Pixels)
+    processCanvas.width = frameLogicalW * dpr;
+    processCanvas.height = frameLogicalH * dpr;
+
+    console.log(`Frame: ${frameLogicalW}x${frameLogicalH} (Logical), Canvas: ${processCanvas.width}x${processCanvas.height} (Physical), DPR: ${dpr}`);
+
+    // Helper to draw rounded rect
+    function roundRect(ctx, x, y, w, h, r) {
+      if (w < 2 * r) r = w / 2;
+      if (h < 2 * r) r = h / 2;
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
 
     // 4. Draw loop
     const draw = () => {
@@ -63,53 +89,113 @@ async function startRecording(data) {
       const videoWidth = sourceVideo.videoWidth;
       const videoHeight = sourceVideo.videoHeight;
       
-      // Auto-Fit Strategy:
-      // We assume the mobile view fills either the height or width of the tab (Fit to Window).
-      // Since mobile is portrait and tab is usually landscape, it likely fills the HEIGHT.
-      
-      const targetRatio = width / height;
+      // --- CROP LOGIC (Get content from stream) ---
+      const targetRatio = screenLogicalW / screenLogicalH;
       const videoRatio = videoWidth / videoHeight;
       
       let cropW, cropH;
       
       if (videoRatio > targetRatio) {
-        // Video is wider than target -> Gray bars on left/right
-        // Content fills the height
         cropH = videoHeight;
         cropW = cropH * targetRatio;
       } else {
-        // Video is taller than target -> Gray bars on top/bottom
-        // Content fills the width
         cropW = videoWidth;
         cropH = cropW / targetRatio;
       }
       
-      const startX = (videoWidth - cropW) / 2;
-      const startY = (videoHeight - cropH) / 2;
+      const cropX = (videoWidth - cropW) / 2;
+      const cropY = (videoHeight - cropH) / 2;
       
-      // Draw black background first
-      processContext.fillStyle = '#000';
-      processContext.fillRect(0, 0, processCanvas.width, processCanvas.height);
+      // --- DRAW FRAME & CONTENT ---
+      // Scale everything to physical pixels for canvas drawing
+      const ctx = processContext;
+      const scale = dpr;
       
-      // Draw with high quality
-      processContext.imageSmoothingEnabled = true;
-      processContext.imageSmoothingQuality = 'high';
+      const frameW = frameLogicalW * scale;
+      const frameH = frameLogicalH * scale;
+      const screenW = screenLogicalW * scale;
+      const screenH = screenLogicalH * scale;
+      const bezelSize = bezel * scale;
+      const radius = cornerRadius * scale;
       
-      processContext.drawImage(
+      // 1. Clear Canvas (Transparent)
+      ctx.clearRect(0, 0, frameW, frameH);
+      
+      // 2. Draw Bezel (Body) - Black
+      ctx.fillStyle = '#000000'; // Deep black for OLED look
+      roundRect(ctx, 0, 0, frameW, frameH, radius + bezelSize/2); // Outer radius
+      ctx.fill();
+      
+      // 3. Draw Inner Border (Screen Edge) - Dark Gray/Stroke
+      // Optional: Add a subtle stroke around screen
+      
+      // 4. Draw Screen Content
+      // We need to mask the screen content to be rounded
+      ctx.save();
+      ctx.translate(bezelSize, bezelSize); // Move to screen area
+      roundRect(ctx, 0, 0, screenW, screenH, radius); // Inner radius
+      ctx.clip(); // Clip to screen shape
+      
+      // Draw Video
+      // Use high quality smoothing
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      
+      ctx.drawImage(
         sourceVideo, 
-        startX, startY, cropW, cropH, // Source crop
-        0, 0, processCanvas.width, processCanvas.height // Destination
+        cropX, cropY, cropW, cropH, // Source
+        0, 0, screenW, screenH      // Destination
       );
+      
+      // Draw inner shadow/border for realism?
+      // ctx.strokeStyle = "rgba(0,0,0,0.1)";
+      // ctx.lineWidth = 4;
+      // ctx.stroke();
+      
+      ctx.restore();
+      
+      // 5. Draw Notch / Dynamic Island
+      const notchW = screenW * 0.3;
+      const notchH = notchW * 0.3; // Aspect ratio of dynamic island roughly
+      const notchX = (frameW - notchW) / 2;
+      const notchY = bezelSize + (notchH * 0.3); // Positioned slightly down from top bezel
+      
+      ctx.fillStyle = '#000000';
+      roundRect(ctx, notchX, notchY, notchW, notchH, notchH/2);
+      ctx.fill();
+
+      // 6. Draw Home Indicator (Bottom Line)
+      // Only if desired. Chrome emulation often lacks it.
+      const hiW = homeIndicatorW * scale;
+      const hiH = homeIndicatorH * scale; // Thickness
+      const hiX = (frameW - hiW) / 2;
+      const hiY = frameH - bezelSize - (15 * scale); // 15px logical from bottom
+      
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      roundRect(ctx, hiX, hiY, hiW, hiH, hiH/2);
+      ctx.fill();
+      
+      // 7. Glossy reflection on bezel (Optional - subtle)
+      // Linear gradient
+      /*
+      const grad = ctx.createLinearGradient(0, 0, frameW, frameH);
+      grad.addColorStop(0, 'rgba(255,255,255,0.1)');
+      grad.addColorStop(0.5, 'rgba(255,255,255,0)');
+      grad.addColorStop(1, 'rgba(255,255,255,0.05)');
+      ctx.fillStyle = grad;
+      roundRect(ctx, 0, 0, frameW, frameH, radius + bezelSize/2);
+      ctx.fill();
+      */
+
     };
     
     // 30 FPS
     animationId = setInterval(draw, 1000 / 30);
     
     // 5. Create stream from canvas
-    canvasStream = processCanvas.captureStream(30); // 30 FPS
+    canvasStream = processCanvas.captureStream(30);
     
     // 6. Start MediaRecorder
-    // Try to use MP4 if supported, otherwise fallback to WebM
     let mimeType = 'video/webm;codecs=vp9';
     if (MediaRecorder.isTypeSupported('video/mp4')) {
       mimeType = 'video/mp4';
@@ -119,10 +205,9 @@ async function startRecording(data) {
 
     console.log('Using mimeType:', mimeType);
 
-    // Use higher bitrate for quality
     mediaRecorder = new MediaRecorder(canvasStream, { 
       mimeType: mimeType,
-      videoBitsPerSecond: 5000000 // 5Mbps
+      videoBitsPerSecond: 8000000 // 8Mbps for high quality with frame
     });
     recordedChunks = [];
 
@@ -135,30 +220,22 @@ async function startRecording(data) {
     mediaRecorder.onstop = () => {
       const blob = new Blob(recordedChunks, { type: mimeType });
       const url = URL.createObjectURL(blob);
-      
-      // Determine extension based on mimeType
       const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
       
-      // Send to background to download via chrome.downloads API
       chrome.runtime.sendMessage({
         type: 'DOWNLOAD_RECORDING',
         url: url,
         filename: `mobile-recording-${new Date().toISOString().replace(/:/g, '-').split('.')[0]}.${ext}`
       });
       
-      statusDiv.textContent = 'Processing download...';
-
-      // Keep stream alive briefly to allow download logic to pick up the blob URL if needed
-      // (Though chrome.downloads can handle blob URLs from same extension)
       setTimeout(() => {
-        // Cleanup
         URL.revokeObjectURL(url);
         clearInterval(animationId);
         if (stream) stream.getTracks().forEach(track => track.stop());
         if (canvasStream) canvasStream.getTracks().forEach(track => track.stop());
         sourceVideo.srcObject = null;
         statusDiv.textContent = 'Idle';
-      }, 5000); // 5 seconds grace period
+      }, 5000);
     };
 
     mediaRecorder.start();
