@@ -1,6 +1,19 @@
 document.addEventListener('DOMContentLoaded', () => {
   const startBtn = document.getElementById('start-btn');
   const statusText = document.querySelector('.recording-controls p');
+  const notchToggle = document.getElementById('notch-toggle');
+  
+  // Load saved setting
+  chrome.storage.local.get(['showNotch'], (result) => {
+    if (result.showNotch !== undefined) {
+      notchToggle.checked = result.showNotch;
+    }
+  });
+
+  // Save setting on change
+  notchToggle.addEventListener('change', () => {
+    chrome.storage.local.set({ showNotch: notchToggle.checked });
+  });
   
   // Check initial state
   chrome.runtime.sendMessage({ type: 'GET_RECORDING_STATE' }, (response) => {
@@ -14,10 +27,12 @@ document.addEventListener('DOMContentLoaded', () => {
       startBtn.textContent = 'Stop Recording';
       startBtn.style.background = '#ff4757';
       statusText.textContent = 'Recording...';
+      notchToggle.disabled = true; // Disable toggle while recording
     } else {
       startBtn.textContent = 'Start Recording';
       startBtn.style.background = '#00d4aa';
       statusText.textContent = 'Ready to record';
+      notchToggle.disabled = false;
     }
   }
 
@@ -32,7 +47,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Start
         chrome.runtime.sendMessage({ 
           type: 'START_RECORDING_REQUEST',
-          tabId: tab.id
+          tabId: tab.id,
+          showNotch: notchToggle.checked
         });
         updateUI(true);
       } else {

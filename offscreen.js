@@ -18,7 +18,7 @@ let stream;
 let canvasStream;
 
 async function startRecording(data) {
-  const { streamId, width, height, devicePixelRatio } = data;
+  const { streamId, width, height, devicePixelRatio, showNotch } = data;
   
   const statusDiv = document.getElementById('status');
   statusDiv.textContent = 'Starting recording...';
@@ -231,19 +231,22 @@ async function startRecording(data) {
       ctx.restore();
       
       // --- Dynamic Island / Notch (Negro Puro) ---
-      const notchW = screenW * 0.3;
-      const notchH = 35 * scale;
-      const notchX = (frameW - notchW) / 2;
-      const notchY = bezelSize + (12 * scale);
-      
-      ctx.fillStyle = '#000000';
-      roundRect(ctx, notchX, notchY, notchW, notchH, notchH/2);
-      ctx.fill();
-      
-      ctx.fillStyle = '#1A1A1A';
-      ctx.beginPath();
-      ctx.arc(notchX + notchW - (12*scale), notchY + notchH/2, 6*scale, 0, Math.PI*2);
-      ctx.fill();
+      // Solo si showNotch es true
+      if (showNotch) {
+        const notchW = screenW * 0.3;
+        const notchH = 35 * scale;
+        const notchX = (frameW - notchW) / 2;
+        const notchY = bezelSize + (12 * scale);
+        
+        ctx.fillStyle = '#000000';
+        roundRect(ctx, notchX, notchY, notchW, notchH, notchH/2);
+        ctx.fill();
+        
+        ctx.fillStyle = '#1A1A1A';
+        ctx.beginPath();
+        ctx.arc(notchX + notchW - (12*scale), notchY + notchH/2, 6*scale, 0, Math.PI*2);
+        ctx.fill();
+      }
 
       // --- Home Indicator ---
       const hiW = homeIndicatorW * scale;

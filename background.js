@@ -53,7 +53,7 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   }
 });
 
-async function startCapture(tabId) {
+async function startCapture(tabId, showNotch = true) {
   try {
     // 1. Get tab info/dimensions via scripting
     const results = await chrome.scripting.executeScript({
@@ -98,7 +98,8 @@ async function startCapture(tabId) {
           streamId: streamId,
           width: dimensions.width,
           height: dimensions.height,
-          devicePixelRatio: dimensions.devicePixelRatio // Use Emulated DPR
+          devicePixelRatio: dimensions.devicePixelRatio,
+          showNotch: showNotch
         }
       });
     }, 500);
