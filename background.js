@@ -28,20 +28,21 @@ async function setupOffscreenDocument(path) {
 
 let creating; // Promise keeper
 let isRecording = false;
-let controlsWindowId = null;
+let recordingTabId = null;
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === 'START_RECORDING_REQUEST') {
     startCapture(message.tabId, message.showNotch);
     isRecording = true;
+    recordingTabId = message.tabId;
   } else if (message.type === 'STOP_RECORDING_REQUEST') {
     chrome.runtime.sendMessage({ target: 'offscreen', type: 'STOP_RECORDING' });
     isRecording = false;
     
-    // Close controls window
-    if (controlsWindowId) {
-      chrome.windows.remove(controlsWindowId).catch(() => {});
-      controlsWindowId = null;
+    // Clean up UI in the recorded tab
+    if (recordingTabId) {
+      chrome.tabs.sendMessage(recordingTabId, { type: 'RECORDING_STOPPED' }).catch(() => {});
+      recordingTabId = null;
     }
   } else if (message.type === 'GET_RECORDING_STATE') {
     sendResponse({ isRecording });
@@ -97,7 +98,7 @@ async function startCapture(tabId, showNotch = true) {
 
     // 4. Send start message to offscreen
     // Wait a bit to ensure offscreen is ready receiving messages
-    setTimeout(async () => {
+    setTimeout(() => {
       chrome.runtime.sendMessage({
         target: 'offscreen',
         type: 'START_RECORDING',
@@ -110,22 +111,15 @@ async function startCapture(tabId, showNotch = true) {
         }
       });
       
-      // Create Floating Controls Window
-      const systemDisplayInfo = await new Promise(resolve => chrome.system.display.getInfo(resolve));
-      const primaryDisplay = systemDisplayInfo.find(d => d.isPrimary) || systemDisplayInfo[0];
-      const screenWidth = primaryDisplay.workArea.width;
-      
-      // Position top-right (e.g., 200px from right edge)
-      const win = await chrome.windows.create({
-        url: 'controls.html',
-        type: 'popup',
-        width: 160,
-        height: 60,
-        top: 100, // Below typical browser chrome
-        left: screenWidth - 180,
-        focused: true
+      // Inject Floating UI (Overlay)
+      chrome.scripting.insertCSS({
+        target: { tabId: tabId },
+        files: ['recording-ui.css']
       });
-      controlsWindowId = win.id;
+      chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        files: ['recording-ui.js']
+      });
       
     }, 500);
 

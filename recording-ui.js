@@ -1,28 +1,37 @@
 (function() {
   // Prevent multiple injections
-  if (document.getElementById('smr-floating-ui')) return;
+  if (document.getElementById('smr-overlay-root')) return;
 
   let startTime = Date.now();
   let timerInterval;
 
-  // Create Container
-  const container = document.createElement('div');
-  container.id = 'smr-floating-ui';
-  container.className = 'smr-floating-controls';
+  // Create Shadow DOM Root to isolate styles
+  const host = document.createElement('div');
+  host.id = 'smr-overlay-root';
+  document.documentElement.appendChild(host); // Append to HTML to be above everything
   
-  // Show immediately
-  container.style.display = 'flex';
+  const shadow = host.attachShadow({ mode: 'closed' });
 
-  // Red Dot
+  // Add Styles
+  const styleLink = document.createElement('link');
+  styleLink.rel = 'stylesheet';
+  styleLink.href = chrome.runtime.getURL('recording-ui.css');
+  shadow.appendChild(styleLink);
+
+  // Create UI Structure
+  const container = document.createElement('div');
+  container.className = 'smr-overlay-container';
+  
+  const box = document.createElement('div');
+  box.className = 'smr-controls-box';
+
   const dot = document.createElement('div');
   dot.className = 'smr-dot';
 
-  // Timer
   const timer = document.createElement('div');
   timer.className = 'smr-timer';
   timer.textContent = '00:00';
 
-  // Stop Button
   const stopBtn = document.createElement('button');
   stopBtn.className = 'smr-stop-btn';
   stopBtn.title = 'Stop Recording';
@@ -31,12 +40,11 @@
   stopIcon.className = 'smr-stop-icon';
   
   stopBtn.appendChild(stopIcon);
-
-  // Assemble
-  container.appendChild(dot);
-  container.appendChild(timer);
-  container.appendChild(stopBtn);
-  document.body.appendChild(container);
+  box.appendChild(dot);
+  box.appendChild(timer);
+  box.appendChild(stopBtn);
+  container.appendChild(box);
+  shadow.appendChild(container);
 
   // Timer Logic
   function updateTimer() {
@@ -49,7 +57,8 @@
   timerInterval = setInterval(updateTimer, 1000);
 
   // Stop Action
-  stopBtn.addEventListener('click', () => {
+  stopBtn.addEventListener('click', (e) => {
+    e.stopPropagation(); // Prevent event bubbling
     chrome.runtime.sendMessage({ type: 'STOP_RECORDING_REQUEST' });
   });
 
@@ -57,9 +66,9 @@
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === 'RECORDING_STOPPED') {
       clearInterval(timerInterval);
-      container.style.opacity = '0';
-      setTimeout(() => container.remove(), 300);
+      box.style.opacity = '0';
+      box.style.transform = 'translateY(-20px)';
+      setTimeout(() => host.remove(), 300);
     }
   });
 })();
-

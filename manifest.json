@@ -9,8 +9,7 @@
     "scripting",
     "tabCapture",
     "offscreen",
-    "downloads",
-    "system.display"
+    "downloads"
   ],
   "host_permissions": [
     "<all_urls>"
