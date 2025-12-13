@@ -20,20 +20,16 @@
       position: fixed;
       top: 0;
       left: 0;
-      width: 100vw;
-      height: 100vh;
+      width: 100%;
+      height: 100%;
       pointer-events: none;
       z-index: 2147483647;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      overflow: visible;
       display: block !important;
     }
     .smr-controls-box {
-      position: absolute;
+      position: fixed; /* Fixed relative to viewport */
       top: 80px; 
       right: 20px;
-      /* Force it to be fixed relative to viewport even if parent transforms exist (partially) */
-      position: fixed; 
       
       background: #202124 !important;
       color: #fff !important;
@@ -42,15 +38,17 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
       pointer-events: auto;
-      border: 1px solid rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
       cursor: grab;
       user-select: none;
-      transition: opacity 0.3s;
+      z-index: 2147483647;
       
-      /* Ensure it stays on top of everything inside the shadow root */
-      z-index: 9999;
+      /* Ensure visibility */
+      opacity: 1 !important;
+      visibility: visible !important;
+      transform: none !important; 
     }
     .smr-controls-box:active {
       cursor: grabbing;
@@ -174,11 +172,12 @@
       xOffset = currentX;
       yOffset = currentY;
 
-      // Update position (using translate for better performance)
-      box.style.transform = `translate(${currentX}px, ${currentY}px)`;
-      // Disable the slide-in animation transform override
-      box.style.animation = 'none';
-      box.style.opacity = '1';
+      // Update position (using left/top for fixed positioning)
+      // transform can sometimes be tricky with fixed position context
+      box.style.left = `${currentX}px`;
+      box.style.top = `${currentY}px`;
+      box.style.transform = 'none';
+      box.style.right = 'auto'; // Clear right once moved
     }
   }
 
