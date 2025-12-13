@@ -28,40 +28,31 @@ async function setupOffscreenDocument(path) {
 
 let creating; // Promise keeper
 let isRecording = false;
-let controlsWindowId = null;
+let recordingStartTime = null;
+let timerInterval = null;
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === 'START_RECORDING_REQUEST') {
-    // Open small controls window
-    // Position it top-right of the screen by default
-    const currentWindow = await chrome.windows.getCurrent();
-    const systemDisplayInfo = await new Promise(r => chrome.system.display.getInfo(r)).catch(() => []);
-    
-    let left = currentWindow.left + currentWindow.width - 220; // Default to top-right of current window
-    let top = currentWindow.top + 80;
-
-    chrome.windows.create({
-      url: 'controls.html',
-      type: 'popup',
-      width: 200,
-      height: 80,
-      left: Math.round(left),
-      top: Math.round(top),
-      focused: true
-    }).then(win => {
-      controlsWindowId = win.id;
-    });
-
     startCapture(message.tabId, message.showNotch);
     isRecording = true;
-  } else if (message.type === 'STOP_RECORDING_REQUEST') {
-    chrome.runtime.sendMessage({ target: 'offscreen', type: 'STOP_RECORDING' });
-    isRecording = false;
     
-    if (controlsWindowId) {
-      chrome.windows.remove(controlsWindowId).catch(() => {});
-      controlsWindowId = null;
-    }
+    // Start Icon Timer
+    recordingStartTime = Date.now();
+    chrome.action.setBadgeBackgroundColor({ color: '#FF0000' });
+    chrome.action.setBadgeText({ text: '0:00' });
+    
+    // Disable popup so clicking icon fires onClicked
+    chrome.action.setPopup({ popup: '' });
+
+    timerInterval = setInterval(() => {
+      const diff = Math.floor((Date.now() - recordingStartTime) / 1000);
+      const mins = Math.floor(diff / 60);
+      const secs = (diff % 60).toString().padStart(2, '0');
+      chrome.action.setBadgeText({ text: `${mins}:${secs}` });
+    }, 1000);
+
+  } else if (message.type === 'STOP_RECORDING_REQUEST') {
+    stopRecording();
   } else if (message.type === 'GET_RECORDING_STATE') {
     sendResponse({ isRecording });
   } else if (message.type === 'DOWNLOAD_RECORDING') {
@@ -78,6 +69,30 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     });
   }
 });
+
+// Handle Icon Click to Stop
+chrome.action.onClicked.addListener((tab) => {
+  if (isRecording) {
+    stopRecording();
+  }
+});
+
+function stopRecording() {
+  if (!isRecording) return;
+  
+  chrome.runtime.sendMessage({ target: 'offscreen', type: 'STOP_RECORDING' });
+  isRecording = false;
+  
+  // Clear Timer
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+  chrome.action.setBadgeText({ text: '' });
+  
+  // Re-enable popup
+  chrome.action.setPopup({ popup: 'popup.html' });
+}
 
 async function startCapture(tabId, showNotch = true) {
   try {
