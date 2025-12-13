@@ -18,7 +18,7 @@ let stream;
 let canvasStream;
 
 async function startRecording(data) {
-  const { streamId, width, height, devicePixelRatio, showNotch } = data;
+  const { streamId, width, height, devicePixelRatio, showNotch, showFrame } = data;
   
   const statusDiv = document.getElementById('status');
   statusDiv.textContent = 'Starting recording...';
@@ -46,10 +46,8 @@ async function startRecording(data) {
     const screenLogicalW = width;
     const screenLogicalH = height;
 
-    // Use fixed geometry based on iPhone reference to keep consistent look across devices
-    // iPhone 14 Pro Max ref: ~430px width -> ~20px bezel
-    const bezel = 20; 
-    const cornerRadius = 55;
+    const bezel = showFrame ? 20 : 0;
+    const cornerRadius = showFrame ? 55 : 0;
     
     // Adjust home indicator relative to width still? Or fixed?
     // "homeIndicatorW" being 35% of width is probably fine for tablets too (iPad home bar is long).
@@ -157,45 +155,53 @@ async function startRecording(data) {
       ctx.clearRect(0, 0, frameW, frameH);
 
       // --- Botones Laterales (Silver) ---
-      ctx.fillStyle = '#D1D1D6';
-      roundRect(ctx, -2*scale, 100*scale, 6*scale, 20*scale, 2*scale);
-      roundRect(ctx, -2*scale, 140*scale, 6*scale, 45*scale, 2*scale);
-      roundRect(ctx, -2*scale, 200*scale, 6*scale, 45*scale, 2*scale);
-      roundRect(ctx, frameW - 4*scale, 160*scale, 6*scale, 70*scale, 2*scale);
-      ctx.fill();
-      
-      // --- Marco Exterior (Chasis Metálico Silver) ---
-      const grad = ctx.createLinearGradient(0, 0, frameW, 0);
-      grad.addColorStop(0, '#8E8E93');
-      grad.addColorStop(0.05, '#E5E5EA');
-      grad.addColorStop(0.2, '#D1D1D6');
-      grad.addColorStop(0.8, '#D1D1D6');
-      grad.addColorStop(0.95, '#E5E5EA');
-      grad.addColorStop(1, '#8E8E93');
-      
-      ctx.fillStyle = grad;
-      roundRect(ctx, 0, 0, frameW, frameH, radius + bezelSize/2); 
-      ctx.fill();
-      
-      // --- Bisel Negro Interno ---
-      const rimWidth = 3.5 * scale;
-      ctx.fillStyle = '#000000'; 
-      roundRect(
-        ctx, 
-        rimWidth, 
-        rimWidth, 
-        frameW - (rimWidth * 2), 
-        frameH - (rimWidth * 2), 
-        radius
-      ); 
-      ctx.fill();
+      if (showFrame) {
+        ctx.fillStyle = '#D1D1D6';
+        roundRect(ctx, -2*scale, 100*scale, 6*scale, 20*scale, 2*scale);
+        roundRect(ctx, -2*scale, 140*scale, 6*scale, 45*scale, 2*scale);
+        roundRect(ctx, -2*scale, 200*scale, 6*scale, 45*scale, 2*scale);
+        roundRect(ctx, frameW - 4*scale, 160*scale, 6*scale, 70*scale, 2*scale);
+        ctx.fill();
+        
+        // --- Marco Exterior (Chasis Metálico Silver) ---
+        const grad = ctx.createLinearGradient(0, 0, frameW, 0);
+        grad.addColorStop(0, '#8E8E93');
+        grad.addColorStop(0.05, '#E5E5EA');
+        grad.addColorStop(0.2, '#D1D1D6');
+        grad.addColorStop(0.8, '#D1D1D6');
+        grad.addColorStop(0.95, '#E5E5EA');
+        grad.addColorStop(1, '#8E8E93');
+        
+        ctx.fillStyle = grad;
+        roundRect(ctx, 0, 0, frameW, frameH, radius + bezelSize/2); 
+        ctx.fill();
+        
+        // --- Bisel Negro Interno ---
+        const rimWidth = 3.5 * scale;
+        ctx.fillStyle = '#000000'; 
+        roundRect(
+          ctx, 
+          rimWidth, 
+          rimWidth, 
+          frameW - (rimWidth * 2), 
+          frameH - (rimWidth * 2), 
+          radius
+        ); 
+        ctx.fill();
+      } else {
+        // Transparent/Empty background if no frame, or just black?
+        // Let's clear it
+        ctx.clearRect(0, 0, frameW, frameH);
+      }
       
       // --- Pantalla ---
       ctx.save();
       ctx.translate(bezelSize, bezelSize);
       
-      const innerRadius = radius - (bezelSize - rimWidth); 
-      roundRect(ctx, 0, 0, screenW, screenH, innerRadius);
+      const innerRadius = radius - (showFrame ? (bezelSize - (3.5 * scale)) : 0); 
+      // If no frame, radius is 0
+      
+      roundRect(ctx, 0, 0, screenW, screenH, showFrame ? innerRadius : 0);
       ctx.clip();
       
       const statusBarHeight = 50 * scale; 

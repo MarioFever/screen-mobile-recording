@@ -1,17 +1,25 @@
 document.addEventListener('DOMContentLoaded', () => {
   const startBtn = document.getElementById('start-btn');
   const notchToggle = document.getElementById('notch-toggle');
+  const frameToggle = document.getElementById('frame-toggle');
   
-  // Load saved setting
-  chrome.storage.local.get(['showNotch'], (result) => {
+  // Load saved settings
+  chrome.storage.local.get(['showNotch', 'showFrame'], (result) => {
     if (result.showNotch !== undefined) {
       notchToggle.checked = result.showNotch;
     }
+    if (result.showFrame !== undefined) {
+      frameToggle.checked = result.showFrame;
+    }
   });
 
-  // Save setting on change
+  // Save settings on change
   notchToggle.addEventListener('change', () => {
     chrome.storage.local.set({ showNotch: notchToggle.checked });
+  });
+  
+  frameToggle.addEventListener('change', () => {
+    chrome.storage.local.set({ showFrame: frameToggle.checked });
   });
   
   // Check initial state
@@ -26,12 +34,14 @@ document.addEventListener('DOMContentLoaded', () => {
       startBtn.textContent = 'Stop Recording';
       startBtn.style.background = '#ff4757';
       // statusText removed
-      notchToggle.disabled = true; // Disable toggle while recording
+      notchToggle.disabled = true; 
+      frameToggle.disabled = true;
     } else {
       startBtn.textContent = 'Start Recording';
       startBtn.style.background = '#00d4aa';
       // statusText removed
       notchToggle.disabled = false;
+      frameToggle.disabled = false;
     }
   }
 
@@ -47,7 +57,8 @@ document.addEventListener('DOMContentLoaded', () => {
         chrome.runtime.sendMessage({ 
           type: 'START_RECORDING_REQUEST',
           tabId: tab.id,
-          showNotch: notchToggle.checked
+          showNotch: notchToggle.checked,
+          showFrame: frameToggle.checked
         });
         updateUI(true);
       } else {

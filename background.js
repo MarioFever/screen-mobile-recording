@@ -34,7 +34,7 @@ let timerInterval = null;
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === 'START_RECORDING_REQUEST') {
-    startCapture(message.tabId, message.showNotch);
+    startCapture(message.tabId, message.showNotch, message.showFrame);
     isRecording = true;
     recordingTabId = message.tabId;
     
@@ -122,7 +122,7 @@ function injectLinkEnforcer(tabId) {
   }).catch(() => {});
 }
 
-async function startCapture(tabId, showNotch = true) {
+async function startCapture(tabId, showNotch = true, showFrame = true) {
   try {
     // 1. Get tab info/dimensions via scripting
     const results = await chrome.scripting.executeScript({
@@ -168,7 +168,8 @@ async function startCapture(tabId, showNotch = true) {
           width: dimensions.width,
           height: dimensions.height,
           devicePixelRatio: dimensions.devicePixelRatio,
-          showNotch: showNotch
+          showNotch: showNotch,
+          showFrame: showFrame
         }
       });
       
