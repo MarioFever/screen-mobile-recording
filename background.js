@@ -102,6 +102,17 @@ async function startCapture(tabId, showNotch = true) {
           showNotch: showNotch
         }
       });
+      
+      // Inject Floating UI
+      chrome.scripting.insertCSS({
+        target: { tabId: tabId },
+        files: ['recording-ui.css']
+      });
+      chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        files: ['recording-ui.js']
+      });
+      
     }, 500);
 
   } catch (err) {
