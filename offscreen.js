@@ -216,13 +216,18 @@ async function startRecording(data) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       
-      // Safety Zoom: Recortamos un 1% por cada lado (zoom 102%) para eliminar márgenes extraños
-      // o barras de scroll que puedan aparecer en el borde derecho.
-      const zoomFactor = 0.98; 
+      // Safety Zoom: Recortamos un 1% (0.99) para limpiar bordes, pero ANCLANDO ARRIBA
+      // para no cortar el header/menú de la web.
+      const zoomFactor = 0.99; 
       const cleanCropW = cropW * zoomFactor;
       const cleanCropH = cropH * zoomFactor;
+      
+      // Centramos horizontalmente (recorta izq y derecha por igual)
       const cleanCropX = cropX + (cropW - cleanCropW) / 2;
-      const cleanCropY = cropY + (cropH - cleanCropH) / 2;
+      
+      // Anclamos arriba (cleanCropY = cropY) para NO recortar nada del top.
+      // Todo el recorte vertical se hace abajo.
+      const cleanCropY = cropY; 
 
       ctx.drawImage(
         sourceVideo, 
