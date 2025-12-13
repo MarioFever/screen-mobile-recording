@@ -28,6 +28,7 @@ async function setupOffscreenDocument(path) {
 
 let creating; // Promise keeper
 let isRecording = false;
+let recordingTabId = null;
 let recordingStartTime = null;
 let timerInterval = null;
 
@@ -35,6 +36,7 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === 'START_RECORDING_REQUEST') {
     startCapture(message.tabId, message.showNotch);
     isRecording = true;
+    recordingTabId = message.tabId;
     
     // Start Icon Timer
     recordingStartTime = Date.now();
@@ -92,6 +94,32 @@ function stopRecording() {
   
   // Re-enable popup
   chrome.action.setPopup({ popup: 'popup.html' });
+  recordingTabId = null;
+}
+
+// Ensure link forcing script is injected on every page load during recording
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (isRecording && recordingTabId && tabId === recordingTabId && changeInfo.status === 'loading') {
+    injectLinkEnforcer(tabId);
+  }
+});
+
+function injectLinkEnforcer(tabId) {
+  chrome.scripting.executeScript({
+    target: { tabId: tabId },
+    func: () => {
+      // Prevent multiple injections
+      if (window.__linkEnforcerAttached) return;
+      window.__linkEnforcerAttached = true;
+      
+      window.addEventListener('click', (e) => {
+        const link = e.target.closest('a');
+        if (link && link.target === '_blank') {
+          link.target = '_self';
+        }
+      }, true);
+    }
+  }).catch(() => {});
 }
 
 async function startCapture(tabId, showNotch = true) {
@@ -145,18 +173,7 @@ async function startCapture(tabId, showNotch = true) {
       });
       
       // Inject script to force links to open in same tab
-      chrome.scripting.executeScript({
-        target: { tabId: tabId },
-        func: () => {
-          // Add a capture phase click listener to intercept clicks
-          window.addEventListener('click', (e) => {
-            const link = e.target.closest('a');
-            if (link && link.target === '_blank') {
-              link.target = '_self';
-            }
-          }, true);
-        }
-      });
+      injectLinkEnforcer(tabId);
       
     }, 500);
 
