@@ -202,11 +202,19 @@ async function startRecording(data) {
       // 2. Dibujar Video
       const videoDestH = screenH - statusBarHeight;
       
+      // FIX: Recortar los primeros 40px lógicos de la fuente para eliminar el tooltip de resolución de Chrome
+      // que aparece arriba a la derecha en modo dispositivo.
+      const sourceTrimTop = 40 * (videoHeight / screenLogicalH); // Escalar 40px al tamaño real del video
+      
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
+      
+      // Dibujamos el video recortando la parte superior (cropY + sourceTrimTop)
+      // y ajustando la altura de origen (cropH - sourceTrimTop)
+      // El destino se mantiene igual (llenando el hueco bajo la barra de estado)
       ctx.drawImage(
         sourceVideo, 
-        cropX, cropY, cropW, cropH, 
+        cropX, cropY + sourceTrimTop, cropW, cropH - sourceTrimTop, 
         0, statusBarHeight, screenW, videoDestH 
       );
       
