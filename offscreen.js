@@ -117,7 +117,10 @@ async function startRecording(data) {
     const colorCanvas = new OffscreenCanvas(1, 1);
     const colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
 
-    const draw = () => {
+    const draw = (now, metadata) => {
+      // Re-schedule immediately for next frame
+      sourceVideo.requestVideoFrameCallback(draw);
+
       if (sourceVideo.paused || sourceVideo.ended) return;
       
       const videoWidth = sourceVideo.videoWidth;
@@ -284,7 +287,13 @@ async function startRecording(data) {
       ctx.fill();
     };
     
-    animationId = setInterval(draw, 1000 / 30);
+    // Use requestVideoFrameCallback for better performance and sync
+    if (sourceVideo.requestVideoFrameCallback) {
+      sourceVideo.requestVideoFrameCallback(draw);
+    } else {
+      // Fallback for older environments
+      animationId = setInterval(draw, 1000 / 30);
+    }
     
     canvasStream = processCanvas.captureStream(30);
     

@@ -113,11 +113,13 @@ function injectLinkEnforcer(tabId) {
       window.__linkEnforcerAttached = true;
       
       window.addEventListener('click', (e) => {
+        // Performance check: Fast exit if target is clearly not a link or interactive
+        // But we must check ancestors. closest is native and fast.
         const link = e.target.closest('a');
         if (link && link.target === '_blank') {
           link.target = '_self';
         }
-      }, true);
+      }, false); // Use bubbling phase instead of capture to be less intrusive
     }
   }).catch(() => {});
 }
