@@ -32,39 +32,36 @@ let controlsWindowId = null;
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === 'START_RECORDING_REQUEST') {
-    // Inject the PiP controller script which will:
-    // 1. Show overlay "Click to start"
-    // 2. Open PiP window on click
-    // 3. Send back 'PIP_OPENED_START_RECORDING'
+    // Open small controls window
+    // Position it top-right of the screen by default
+    const currentWindow = await chrome.windows.getCurrent();
+    const systemDisplayInfo = await new Promise(r => chrome.system.display.getInfo(r)).catch(() => []);
     
-    // Store params for when we actually start
-    await chrome.storage.local.set({ 
-      pendingRecording: { 
-        tabId: message.tabId, 
-        showNotch: message.showNotch 
-      }
+    let left = currentWindow.left + currentWindow.width - 220; // Default to top-right of current window
+    let top = currentWindow.top + 80;
+
+    chrome.windows.create({
+      url: 'controls.html',
+      type: 'popup',
+      width: 200,
+      height: 80,
+      left: Math.round(left),
+      top: Math.round(top),
+      focused: true
+    }).then(win => {
+      controlsWindowId = win.id;
     });
 
-    chrome.scripting.executeScript({
-      target: { tabId: message.tabId },
-      files: ['pip-controller.js']
-    });
-    
-  } else if (message.type === 'PIP_OPENED_START_RECORDING') {
-    // Now actually start recording
-    const data = await chrome.storage.local.get('pendingRecording');
-    if (data.pendingRecording) {
-      startCapture(data.pendingRecording.tabId, data.pendingRecording.showNotch);
-      isRecording = true;
-      // Clear pending
-      chrome.storage.local.remove('pendingRecording');
-    }
-
+    startCapture(message.tabId, message.showNotch);
+    isRecording = true;
   } else if (message.type === 'STOP_RECORDING_REQUEST') {
     chrome.runtime.sendMessage({ target: 'offscreen', type: 'STOP_RECORDING' });
     isRecording = false;
-    // PiP window closes itself via script
     
+    if (controlsWindowId) {
+      chrome.windows.remove(controlsWindowId).catch(() => {});
+      controlsWindowId = null;
+    }
   } else if (message.type === 'GET_RECORDING_STATE') {
     sendResponse({ isRecording });
   } else if (message.type === 'DOWNLOAD_RECORDING') {
