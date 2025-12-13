@@ -1,6 +1,6 @@
 .smr-floating-controls {
   position: fixed;
-  top: 80px; /* Moved down to avoid extensions bar/bookmarks */
+  top: 80px; 
   right: 20px;
   background: #202124;
   color: #fff;
@@ -13,11 +13,21 @@
   font-size: 14px;
   font-weight: 500;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  z-index: 2147483647; /* Max z-index to stay on top */
+  z-index: 2147483647; 
   transition: opacity 0.3s ease;
   user-select: none;
   border: 1px solid rgba(255,255,255,0.1);
-  display: none; /* Hidden by default until we check viewport */
+  display: flex; 
+  cursor: grab;
+  opacity: 0.1; /* Almost invisible by default */
+}
+
+.smr-floating-controls:hover {
+  opacity: 1; /* Fully visible on hover */
+}
+
+.smr-floating-controls:active {
+  cursor: grabbing;
 }
 
 /* Ensure it's not captured by tabCapture if possible, 

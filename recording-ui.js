@@ -38,6 +38,48 @@
   container.appendChild(stopBtn);
   document.body.appendChild(container);
 
+  // Drag Logic
+  let isDragging = false;
+  let currentX;
+  let currentY;
+  let initialX;
+  let initialY;
+  let xOffset = 0;
+  let yOffset = 0;
+
+  container.addEventListener("mousedown", dragStart);
+  window.addEventListener("mouseup", dragEnd);
+  window.addEventListener("mousemove", drag);
+
+  function dragStart(e) {
+    if (e.target.closest('.smr-stop-btn')) return;
+    
+    initialX = e.clientX - xOffset;
+    initialY = e.clientY - yOffset;
+
+    if (container.contains(e.target)) {
+      isDragging = true;
+    }
+  }
+
+  function dragEnd(e) {
+    initialX = currentX;
+    initialY = currentY;
+    isDragging = false;
+  }
+
+  function drag(e) {
+    if (isDragging) {
+      e.preventDefault();
+      currentX = e.clientX - initialX;
+      currentY = e.clientY - initialY;
+      xOffset = currentX;
+      yOffset = currentY;
+      
+      container.style.transform = `translate(${currentX}px, ${currentY}px)`;
+    }
+  }
+
   // Timer Logic
   function updateTimer() {
     const diff = Math.floor((Date.now() - startTime) / 1000);
