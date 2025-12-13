@@ -12,11 +12,89 @@
   
   const shadow = host.attachShadow({ mode: 'closed' });
 
-  // Add Styles
-  const styleLink = document.createElement('link');
-  styleLink.rel = 'stylesheet';
-  styleLink.href = chrome.runtime.getURL('recording-ui.css');
-  shadow.appendChild(styleLink);
+  // Add Styles inline to ensure they load regardless of file access issues
+  const style = document.createElement('style');
+  style.textContent = `
+    .smr-overlay-container {
+      all: initial;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 2147483647;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      overflow: visible;
+      display: block !important;
+    }
+    .smr-controls-box {
+      position: absolute;
+      top: 10px;
+      right: 20px;
+      background: #202124;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 40px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      pointer-events: auto;
+      border: 1px solid rgba(255,255,255,0.1);
+      opacity: 0;
+      transform: translateY(-20px);
+      animation: smr-slide-in 0.3s forwards ease-out;
+    }
+    @keyframes smr-slide-in {
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .smr-dot {
+      width: 10px;
+      height: 10px;
+      background-color: #ff4444;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #ff4444;
+      animation: smr-pulse 2s infinite;
+    }
+    @keyframes smr-pulse {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.9); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    .smr-timer {
+      font-variant-numeric: tabular-nums;
+      font-size: 14px;
+      font-weight: 500;
+      min-width: 45px;
+      color: #ffffff;
+    }
+    .smr-stop-btn {
+      background: #fff;
+      border: none;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.2s;
+      padding: 0;
+      margin: 0;
+    }
+    .smr-stop-btn:hover {
+      transform: scale(1.1);
+      background: #f0f0f0;
+    }
+    .smr-stop-icon {
+      width: 10px;
+      height: 10px;
+      background-color: #202124;
+      border-radius: 2px;
+    }
+  `;
+  shadow.appendChild(style);
 
   // Create UI Structure
   const container = document.createElement('div');
