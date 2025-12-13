@@ -111,11 +111,15 @@ async function startCapture(tabId, showNotch = true) {
         }
       });
       
-      // Inject Floating UI (Overlay)
-      chrome.scripting.executeScript({
-        target: { tabId: tabId },
-        files: ['recording-ui.js']
+      // Open Side Panel
+      chrome.sidePanel.open({ tabId: tabId }).catch((err) => {
+          console.log("Could not open side panel automatically (requires user gesture usually):", err);
       });
+      
+      // Notify Side Panel
+      setTimeout(() => {
+        chrome.runtime.sendMessage({ type: 'RECORDING_STARTED' });
+      }, 500);
       
     }, 500);
 
