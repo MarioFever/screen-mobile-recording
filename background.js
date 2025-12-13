@@ -172,7 +172,14 @@ async function startCapture(tabId, showNotch = true) {
         }
       });
       
-      // Inject script to force links to open in same tab
+      // Inject script to hide Chrome resolution tooltip if possible via CSS injection into the DevTools frontend?
+      // No, extensions cannot inject CSS into DevTools.
+      
+      // Attempt to hide the tooltip by injecting a very specific style into the page
+      // that pushes content down slightly or overlays a blocking element?
+      // No, the tooltip is outside the DOM.
+      
+      // BEST EFFORT: Inject script to force links to open in same tab
       injectLinkEnforcer(tabId);
       
     }, 500);
