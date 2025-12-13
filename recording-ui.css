@@ -1,44 +1,7 @@
-/* Reset */
-.smr-overlay-container {
-  all: initial;
+.smr-floating-controls {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  pointer-events: none; /* Let clicks pass through generally */
-  z-index: 2147483647;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  overflow: visible;
-  display: block !important;
-}
-
-/* 
-   We anchor it to the TOP RIGHT of the VIEWPORT.
-   This will appear "inside" the mobile view if the mobile view fills the viewport.
-   BUT the user wants it at the top right of the CHROME WINDOW content area.
-   
-   If Device Mode is active, the viewport IS the device area + gray background.
-   So fixed positioning relative to viewport puts it at the top-right of the gray area.
-   
-   CRITICAL: To avoid being captured by tabCapture (which captures the viewport),
-   we cannot easily hide it from the stream while showing it to the user in the SAME tab
-   without using complex stream editing (which we are already doing).
-   
-   Wait! We ARE doing stream editing (offscreen canvas crop).
-   We are cropping the CENTER of the video.
-   
-   If we place the controls at the very TOP-RIGHT edge of the window,
-   and the mobile view is CENTERED, the controls will be in the gray area.
-   Since our offscreen recorder CROPS the center (the mobile view), 
-   anything in the far top-right gray area WILL AUTOMATICALLY BE EXCLUDED 
-   from the final video!
-*/
-
-.smr-controls-box {
-  position: absolute;
-  top: 10px;
-  right: 20px; /* Far right of the browser window */
+  top: 80px; /* Moved down to avoid extensions bar/bookmarks */
+  right: 20px;
   background: #202124;
   color: #fff;
   padding: 8px 16px;
@@ -46,17 +9,29 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  pointer-events: auto; /* Re-enable clicks for the button */
+  z-index: 2147483647; /* Max z-index to stay on top */
+  transition: opacity 0.3s ease;
+  user-select: none;
   border: 1px solid rgba(255,255,255,0.1);
-  opacity: 0;
-  transform: translateY(-20px);
-  animation: smr-slide-in 0.3s forwards ease-out;
+  display: none; /* Hidden by default until we check viewport */
 }
 
-@keyframes smr-slide-in {
-  to { opacity: 1; transform: translateY(0); }
-}
+/* Ensure it's not captured by tabCapture if possible, 
+   but tabCapture captures everything rendered. 
+   The only way to hide it from capture is to put it in a shadow DOM 
+   or ensure the capture area excludes it. 
+   
+   However, our capture area IS the center mobile view.
+   If the floating control is in the top-right corner of the desktop window,
+   and the mobile view is centered, it SHOULD be outside the crop area naturally.
+   
+   Let's ensure it's positioned absolutely relative to viewport 
+   and far enough to the right to be outside the mobile crop.
+*/
 
 .smr-dot {
   width: 10px;
@@ -75,10 +50,7 @@
 
 .smr-timer {
   font-variant-numeric: tabular-nums;
-  font-size: 14px;
-  font-weight: 500;
   min-width: 45px;
-  color: #ffffff;
 }
 
 .smr-stop-btn {
@@ -92,8 +64,7 @@
   justify-content: center;
   cursor: pointer;
   transition: transform 0.2s;
-  padding: 0;
-  margin: 0;
+  margin-left: 4px;
 }
 
 .smr-stop-btn:hover {
@@ -107,3 +78,4 @@
   background-color: #202124;
   border-radius: 2px;
 }
+

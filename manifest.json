@@ -9,12 +9,8 @@
     "scripting",
     "tabCapture",
     "offscreen",
-    "downloads",
-    "sidePanel"
+    "downloads"
   ],
-  "side_panel": {
-    "default_path": "sidepanel.html"
-  },
   "host_permissions": [
     "<all_urls>"
   ],
@@ -33,16 +29,6 @@
   },
   "background": {
     "service_worker": "background.js"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "recording-ui.css"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
-    }
-  ]
+  }
 }
 

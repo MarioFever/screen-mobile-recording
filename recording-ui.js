@@ -1,129 +1,28 @@
 (function() {
   // Prevent multiple injections
-  if (document.getElementById('smr-overlay-root')) return;
+  if (document.getElementById('smr-floating-ui')) return;
 
   let startTime = Date.now();
   let timerInterval;
 
-  // Create Shadow DOM Root to isolate styles
-  const host = document.createElement('div');
-  host.id = 'smr-overlay-root';
-  
-  // Append to document.body instead of documentElement to avoid some root-level stacking context issues
-  // or layout shifts.
-  if (document.body) {
-    document.body.appendChild(host);
-  } else {
-    document.documentElement.appendChild(host);
-  }
-  
-  const shadow = host.attachShadow({ mode: 'open' }); // Switch to open for debugging if needed
-
-  // Add Styles inline to ensure they load regardless of file access issues
-  const style = document.createElement('style');
-  style.textContent = `
-    .smr-overlay-container {
-      all: initial;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: 2147483647;
-      display: block !important;
-    }
-    .smr-controls-box {
-      position: fixed; /* Fixed relative to viewport */
-      top: 80px; 
-      right: 20px;
-      
-      background: #202124 !important;
-      color: #fff !important;
-      padding: 8px 16px;
-      border-radius: 40px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-      pointer-events: auto;
-      border: 1px solid rgba(255,255,255,0.2);
-      cursor: grab;
-      user-select: none;
-      z-index: 2147483647;
-      
-      /* Ensure visibility */
-      opacity: 1 !important;
-      visibility: visible !important;
-      transform: none !important; 
-    }
-    .smr-controls-box:active {
-      cursor: grabbing;
-    }
-    @keyframes smr-slide-in {
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .smr-dot {
-      width: 10px;
-      height: 10px;
-      background-color: #ff4444;
-      border-radius: 50%;
-      box-shadow: 0 0 8px #ff4444;
-      animation: smr-pulse 2s infinite;
-    }
-    @keyframes smr-pulse {
-      0% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(0.9); }
-      100% { opacity: 1; transform: scale(1); }
-    }
-    .smr-timer {
-      font-variant-numeric: tabular-nums;
-      font-size: 14px;
-      font-weight: 500;
-      min-width: 45px;
-      color: #ffffff;
-    }
-    .smr-stop-btn {
-      background: #fff;
-      border: none;
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: transform 0.2s;
-      padding: 0;
-      margin: 0;
-    }
-    .smr-stop-btn:hover {
-      transform: scale(1.1);
-      background: #f0f0f0;
-    }
-    .smr-stop-icon {
-      width: 10px;
-      height: 10px;
-      background-color: #202124;
-      border-radius: 2px;
-    }
-  `;
-  shadow.appendChild(style);
-
-  // Create UI Structure
+  // Create Container
   const container = document.createElement('div');
-  container.className = 'smr-overlay-container';
+  container.id = 'smr-floating-ui';
+  container.className = 'smr-floating-controls';
   
-  const box = document.createElement('div');
-  box.className = 'smr-controls-box';
+  // Show immediately
+  container.style.display = 'flex';
 
+  // Red Dot
   const dot = document.createElement('div');
   dot.className = 'smr-dot';
 
+  // Timer
   const timer = document.createElement('div');
   timer.className = 'smr-timer';
   timer.textContent = '00:00';
 
+  // Stop Button
   const stopBtn = document.createElement('button');
   stopBtn.className = 'smr-stop-btn';
   stopBtn.title = 'Stop Recording';
@@ -132,61 +31,12 @@
   stopIcon.className = 'smr-stop-icon';
   
   stopBtn.appendChild(stopIcon);
-  box.appendChild(dot);
-  box.appendChild(timer);
-  box.appendChild(stopBtn);
-  container.appendChild(box);
-  shadow.appendChild(container);
 
-  // Drag Logic
-  let isDragging = false;
-  let currentX;
-  let currentY;
-  let initialX;
-  let initialY;
-  let xOffset = 0;
-  let yOffset = 0;
-
-  box.addEventListener("mousedown", dragStart);
-  window.addEventListener("mouseup", dragEnd);
-  window.addEventListener("mousemove", drag);
-
-  function dragStart(e) {
-    // Ignore if clicking the stop button
-    if (e.target.closest('.smr-stop-btn')) return;
-    
-    initialX = e.clientX - xOffset;
-    initialY = e.clientY - yOffset;
-
-    if (e.target === box || box.contains(e.target)) {
-      isDragging = true;
-    }
-  }
-
-  function dragEnd(e) {
-    initialX = currentX;
-    initialY = currentY;
-    isDragging = false;
-  }
-
-  function drag(e) {
-    if (isDragging) {
-      e.preventDefault();
-      
-      currentX = e.clientX - initialX;
-      currentY = e.clientY - initialY;
-
-      xOffset = currentX;
-      yOffset = currentY;
-
-      // Update position (using left/top for fixed positioning)
-      // transform can sometimes be tricky with fixed position context
-      box.style.left = `${currentX}px`;
-      box.style.top = `${currentY}px`;
-      box.style.transform = 'none';
-      box.style.right = 'auto'; // Clear right once moved
-    }
-  }
+  // Assemble
+  container.appendChild(dot);
+  container.appendChild(timer);
+  container.appendChild(stopBtn);
+  document.body.appendChild(container);
 
   // Timer Logic
   function updateTimer() {
@@ -199,8 +49,7 @@
   timerInterval = setInterval(updateTimer, 1000);
 
   // Stop Action
-  stopBtn.addEventListener('click', (e) => {
-    e.stopPropagation(); // Prevent event bubbling
+  stopBtn.addEventListener('click', () => {
     chrome.runtime.sendMessage({ type: 'STOP_RECORDING_REQUEST' });
   });
 
@@ -208,9 +57,9 @@
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === 'RECORDING_STOPPED') {
       clearInterval(timerInterval);
-      box.style.opacity = '0';
-      box.style.transform = 'translateY(-20px)';
-      setTimeout(() => host.remove(), 300);
+      container.style.opacity = '0';
+      setTimeout(() => container.remove(), 300);
     }
   });
 })();
+

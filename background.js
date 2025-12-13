@@ -32,9 +32,6 @@ let recordingTabId = null;
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === 'START_RECORDING_REQUEST') {
-    // Open Side Panel disabled, reverting to Overlay
-    // chrome.sidePanel.open({ tabId: message.tabId }).catch(err => console.error("Failed to open side panel:", err));
-
     startCapture(message.tabId, message.showNotch);
     isRecording = true;
     recordingTabId = message.tabId;
@@ -114,10 +111,15 @@ async function startCapture(tabId, showNotch = true) {
         }
       });
       
-      // Notify Side Panel
-      setTimeout(() => {
-        chrome.runtime.sendMessage({ type: 'RECORDING_STARTED' });
-      }, 500);
+      // Inject Floating UI
+      chrome.scripting.insertCSS({
+        target: { tabId: tabId },
+        files: ['recording-ui.css']
+      });
+      chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        files: ['recording-ui.js']
+      });
       
     }, 500);
 
