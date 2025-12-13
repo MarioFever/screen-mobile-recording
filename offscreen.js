@@ -42,34 +42,30 @@ async function startRecording(data) {
 
     // 3. Setup Canvas for cropping
     processCanvas = document.getElementById('processCanvas');
-    processContext = processCanvas.getContext('2d', { alpha: false }); // Optimize for video
+    processContext = processCanvas.getContext('2d', { alpha: false });
 
-    // Use the target mobile dimensions directly (logical resolution)
-    // The user wants the output to match the configured device size (e.g. 430x932)
-    processCanvas.width = width;
-    processCanvas.height = height;
+    // Handle High DPI displays (Host System Scaling)
+    // The tabCapture stream usually provides physical pixels (or scaled by host DPR).
+    // The 'width' parameter is in logical CSS pixels (e.g. 430).
+    // We need to match the stream's density.
+    // window.devicePixelRatio in the offscreen document reflects the host system's scaling.
+    const dpr = window.devicePixelRatio || 1;
+    
+    console.log(`Logical size: ${width}x${height}, DPR: ${dpr}`);
 
-    console.log(`Canvas set to ${width}x${height}`);
+    // Set canvas to the scaled size to capture full quality
+    processCanvas.width = width * dpr;
+    processCanvas.height = height * dpr;
 
     // 4. Draw loop
-    // Use setInterval instead of requestAnimationFrame to prevent freezing in background
     const draw = () => {
       if (sourceVideo.paused || sourceVideo.ended) return;
       
       const videoWidth = sourceVideo.videoWidth;
       const videoHeight = sourceVideo.videoHeight;
       
-      // We assume the device view is centered and 1:1 scale (100% zoom)
-      // If the user has a high DPI screen, the video might be larger.
-      // But usually tabCapture returns logical pixels (CSS pixels) on non-retina, 
-      // or physical pixels on Retina. 
-      // This is the tricky part. 
-      
-      // Let's try to detect if we need to scale based on ratio.
-      // But for now, strict crop of logical width/height from center.
-      
-      const targetW = width;
-      const targetH = height;
+      const targetW = width * dpr;
+      const targetH = height * dpr;
       
       const startX = (videoWidth - targetW) / 2;
       const startY = (videoHeight - targetH) / 2;
