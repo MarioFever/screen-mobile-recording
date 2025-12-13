@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Icon Generator</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #1a1d2e;
+            color: white;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            background: #252836;
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
+        }
+        .preview-row {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            align-items: flex-end;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+        .icon-preview {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        canvas {
+            border: 1px solid rgba(255,255,255,0.1);
+            background: transparent; /* checkerboard would be better for transparency */
+            background-image: linear-gradient(45deg, #333 25%, transparent 25%), linear-gradient(-45deg, #333 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #333 75%), linear-gradient(-45deg, transparent 75%, #333 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #00d4aa;
+            border: none;
+            border-radius: 6px;
+            color: #0a1f2e;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #00b894;
+        }
+        .controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+        }
+        label { margin-right: 10px; }
+        input[type="color"] { border: none; height: 30px; width: 50px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Extension Icon Generator</h1>
+        <p>Customize and generate the PNG icons from your SVG.</p>
+        
+        <div class="controls">
+            <label>Icon Color:</label>
+            <input type="color" id="iconColor" value="#ffffff">
+            <label style="margin-left: 20px;">Background:</label>
+            <input type="color" id="bgColor" value="#00d4aa">
+            <label><input type="checkbox" id="transparentBg"> Transparent</label>
+        </div>
+
+        <div class="preview-row">
+            <div class="icon-preview">
+                <canvas id="c16" width="16" height="16"></canvas>
+                <span>16px</span>
+            </div>
+            <div class="icon-preview">
+                <canvas id="c48" width="48" height="48"></canvas>
+                <span>48px</span>
+            </div>
+            <div class="icon-preview">
+                <canvas id="c128" width="128" height="128"></canvas>
+                <span>128px</span>
+            </div>
+        </div>
+
+        <button id="downloadAll">Download All Icons</button>
+        <p style="font-size: 12px; margin-top: 10px; opacity: 0.7;">Files will download to your default downloads folder.</p>
+    </div>
+
+    <!-- Hidden SVG image to load data -->
+    <img id="sourceSvg" src="icons/icon.svg" style="display: none;" onload="renderAll()">
+
+    <script>
+        const canvases = {
+            16: document.getElementById('c16'),
+            48: document.getElementById('c48'),
+            128: document.getElementById('c128')
+        };
+        const ctxs = {
+            16: canvases[16].getContext('2d'),
+            48: canvases[48].getContext('2d'),
+            128: canvases[128].getContext('2d')
+        };
+
+        const sourceImg = document.getElementById('sourceSvg');
+        const iconColorInput = document.getElementById('iconColor');
+        const bgColorInput = document.getElementById('bgColor');
+        const transparentBgInput = document.getElementById('transparentBg');
+
+        // Function to modify SVG color before drawing
+        // Since we can't easily modify the img.src loaded SVG object directly via canvas API (it treats it as bitmap),
+        // we will fetch the SVG text, modify the fill, and create a Blob URL.
+        
+        async function loadAndRender() {
+            try {
+                const response = await fetch('icons/icon.svg');
+                let svgText = await response.text();
+                
+                render(svgText);
+            } catch (e) {
+                console.error("Could not load SVG", e);
+            }
+        }
+
+        function render(svgText) {
+            const iconColor = iconColorInput.value;
+            const bgColor = bgColorInput.value;
+            const isTransparent = transparentBgInput.checked;
+
+            // Simple string replacement for fill. 
+            // The SVG has fill="#ffffff". We'll replace it.
+            // If it doesn't have fill attribute, we might need to add it to <path> or <svg>
+            
+            let coloredSvg = svgText;
+            if (coloredSvg.includes('fill="#ffffff"')) {
+                coloredSvg = coloredSvg.replace(/fill="#ffffff"/g, `fill="${iconColor}"`);
+            } else if (coloredSvg.includes('path')) {
+                 coloredSvg = coloredSvg.replace('<path', `<path fill="${iconColor}"`);
+            }
+
+            const blob = new Blob([coloredSvg], {type: 'image/svg+xml'});
+            const url = URL.createObjectURL(blob);
+            const img = new Image();
+            
+            img.onload = () => {
+                Object.keys(canvases).forEach(size => {
+                    const ctx = ctxs[size];
+                    const canvas = canvases[size];
+                    
+                    // Clear
+                    ctx.clearRect(0, 0, size, size);
+
+                    // Draw Background
+                    if (!isTransparent) {
+                        ctx.fillStyle = bgColor;
+                        // Rounded corners?
+                        // ctx.beginPath();
+                        // ctx.roundRect(0, 0, size, size, size * 0.2);
+                        // ctx.fill();
+                        
+                        // Let's do a simple circle for the background
+                        ctx.beginPath();
+                        ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    // Draw Icon (centered and scaled)
+                    // Scale icon to be 60% of the canvas size
+                    const iconSize = size * 0.6;
+                    const offset = (size - iconSize) / 2;
+                    
+                    ctx.drawImage(img, offset, offset, iconSize, iconSize);
+                });
+                URL.revokeObjectURL(url);
+            };
+            img.src = url;
+        }
+
+        function renderAll() {
+            loadAndRender();
+        }
+
+        [iconColorInput, bgColorInput, transparentBgInput].forEach(el => {
+            el.addEventListener('input', () => renderAll());
+            el.addEventListener('change', () => renderAll());
+        });
+
+        document.getElementById('downloadAll').addEventListener('click', () => {
+            Object.keys(canvases).forEach(size => {
+                const link = document.createElement('a');
+                link.download = `icon${size}.png`;
+                link.href = canvases[size].toDataURL('image/png');
+                link.click();
+            });
+        });
+
+        // Initial render
+        window.onload = loadAndRender;
+
+    </script>
+</body>
+</html>
+

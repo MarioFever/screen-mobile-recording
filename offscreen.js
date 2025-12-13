@@ -111,20 +111,28 @@ async function startRecording(data) {
       const a = document.createElement('a');
       a.style.display = 'none';
       a.href = url;
-      a.download = `mobile-recording-${new Date().toISOString().replace(/:/g, '-')}.webm`;
+      a.download = `mobile-recording-${new Date().toISOString().replace(/:/g, '-').split('.')[0]}.webm`;
       document.body.appendChild(a);
       a.click();
       
+      // Keep cleanup slightly delayed to ensure download triggers
       setTimeout(() => {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-      }, 100);
+        
+        // Cleanup streams
+        if (stream) stream.getTracks().forEach(track => track.stop());
+        if (canvasStream) canvasStream.getTracks().forEach(track => track.stop());
+        sourceVideo.srcObject = null;
+        
+        // Close offscreen document to save resources? 
+        // No, keep it open for next time or let background handle it.
+        // Actually, closing it might stop the download if not careful?
+        // Offscreen documents have a lifetime limit anyway.
+        
+      }, 1000); // Increased timeout to be safe
       
-      // Cleanup
       cancelAnimationFrame(animationId);
-      if (stream) stream.getTracks().forEach(track => track.stop());
-      if (canvasStream) canvasStream.getTracks().forEach(track => track.stop());
-      sourceVideo.srcObject = null;
       statusDiv.textContent = 'Idle';
     };
 
