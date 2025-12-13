@@ -42,28 +42,39 @@ async function startRecording(data) {
 
     // 3. Setup Canvas for cropping
     processCanvas = document.getElementById('processCanvas');
-    processContext = processCanvas.getContext('2d');
+    processContext = processCanvas.getContext('2d', { alpha: false }); // Optimize for video
 
-    // Use the target mobile dimensions
-    processCanvas.width = width * devicePixelRatio;
-    processCanvas.height = height * devicePixelRatio;
+    // Use the target mobile dimensions directly (logical resolution)
+    // The user wants the output to match the configured device size (e.g. 430x932)
+    processCanvas.width = width;
+    processCanvas.height = height;
+
+    console.log(`Canvas set to ${width}x${height}`);
 
     // 4. Draw loop
+    // Use setInterval instead of requestAnimationFrame to prevent freezing in background
     const draw = () => {
       if (sourceVideo.paused || sourceVideo.ended) return;
       
       const videoWidth = sourceVideo.videoWidth;
       const videoHeight = sourceVideo.videoHeight;
       
-      // Calculate crop (center)
-      const targetW = width * devicePixelRatio;
-      const targetH = height * devicePixelRatio;
+      // We assume the device view is centered and 1:1 scale (100% zoom)
+      // If the user has a high DPI screen, the video might be larger.
+      // But usually tabCapture returns logical pixels (CSS pixels) on non-retina, 
+      // or physical pixels on Retina. 
+      // This is the tricky part. 
       
-      // Assume center alignment
+      // Let's try to detect if we need to scale based on ratio.
+      // But for now, strict crop of logical width/height from center.
+      
+      const targetW = width;
+      const targetH = height;
+      
       const startX = (videoWidth - targetW) / 2;
       const startY = (videoHeight - targetH) / 2;
       
-      // We will clear and draw
+      // Draw black background first
       processContext.fillStyle = '#000';
       processContext.fillRect(0, 0, processCanvas.width, processCanvas.height);
       
@@ -72,12 +83,11 @@ async function startRecording(data) {
         startX, startY, targetW, targetH, // Source crop
         0, 0, targetW, targetH // Destination
       );
-      
-      animationId = requestAnimationFrame(draw);
     };
     
-    draw();
-
+    // 30 FPS
+    animationId = setInterval(draw, 1000 / 30);
+    
     // 5. Create stream from canvas
     canvasStream = processCanvas.captureStream(30); // 30 FPS
     
@@ -126,7 +136,7 @@ async function startRecording(data) {
       setTimeout(() => {
         // Cleanup
         URL.revokeObjectURL(url);
-        cancelAnimationFrame(animationId);
+        clearInterval(animationId);
         if (stream) stream.getTracks().forEach(track => track.stop());
         if (canvasStream) canvasStream.getTracks().forEach(track => track.stop());
         sourceVideo.srcObject = null;
