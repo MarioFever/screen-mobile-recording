@@ -24,7 +24,6 @@ async function startRecording(data) {
   statusDiv.textContent = 'Starting recording...';
 
   try {
-    // 1. Get the stream using the ID from tabCapture
     stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
       video: {
@@ -35,41 +34,32 @@ async function startRecording(data) {
       }
     });
 
-    // 2. Setup video element to play the stream
     sourceVideo = document.getElementById('sourceVideo');
     sourceVideo.srcObject = stream;
     await sourceVideo.play();
 
-    // 3. Setup Canvas
     processCanvas = document.getElementById('processCanvas');
-    processContext = processCanvas.getContext('2d', { alpha: true }); // Enable alpha for transparency effects
+    processContext = processCanvas.getContext('2d', { alpha: true });
 
-    // Emulated DPR
     let dpr = devicePixelRatio || 1;
     
-    // Calculate Logical Sizes
+    // Configuración de dimensiones lógicas
     const screenLogicalW = width;
     const screenLogicalH = height;
 
-    // Frame configuration (Modern iPhone style)
-    // Scale bezels based on device size. Roughly 4% of width.
-    const bezel = Math.round(screenLogicalW * 0.05); 
-    const cornerRadius = Math.round(screenLogicalW * 0.12); // ~12% for rounded corners
+    // Configuración del Marco (Estilo iPhone Pro Silver)
+    const bezel = Math.round(screenLogicalW * 0.045); // ~4.5% bezel
+    const cornerRadius = Math.round(screenLogicalW * 0.13);
     const homeIndicatorW = Math.round(screenLogicalW * 0.35);
-    const homeIndicatorH = Math.round(5 * (dpr/3)); // Scale thickness
-    const homeIndicatorY = Math.round(screenLogicalH - 15);
-
-    // Frame Dimensions (Logical)
+    const homeIndicatorH = Math.round(5 * (dpr/3));
+    
+    // Dimensiones del Marco
     const frameLogicalW = screenLogicalW + (bezel * 2);
     const frameLogicalH = screenLogicalH + (bezel * 2);
 
-    // Canvas Size (Physical Pixels)
     processCanvas.width = frameLogicalW * dpr;
     processCanvas.height = frameLogicalH * dpr;
 
-    console.log(`Frame: ${frameLogicalW}x${frameLogicalH} (Logical), Canvas: ${processCanvas.width}x${processCanvas.height} (Physical), DPR: ${dpr}`);
-
-    // Helper to draw rounded rect
     function roundRect(ctx, x, y, w, h, r) {
       if (w < 2 * r) r = w / 2;
       if (h < 2 * r) r = h / 2;
@@ -82,19 +72,61 @@ async function startRecording(data) {
       ctx.closePath();
     }
 
-    // 4. Draw loop
+    // Helper para dibujar iconos de estado
+    function drawSignal(ctx, x, y, w, h) {
+        const gap = w * 0.2;
+        const barW = (w - (3 * gap)) / 4;
+        for (let i = 0; i < 4; i++) {
+            const barH = h * (0.4 + (0.2 * i));
+            ctx.fillStyle = '#FFFFFF';
+            roundRect(ctx, x + (i * (barW + gap)), y + (h - barH), barW, barH, 1);
+            ctx.fill();
+        }
+    }
+
+    function drawWifi(ctx, x, y, size) {
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(x + size/2, y + size, size * 0.9, Math.PI * 1.25, Math.PI * 1.75);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x + size/2, y + size, size * 0.6, Math.PI * 1.25, Math.PI * 1.75);
+        ctx.stroke();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.arc(x + size/2, y + size * 0.9, size * 0.15, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    function drawBattery(ctx, x, y, w, h) {
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2; // Grosor de línea ajustado para no ser muy grueso
+        // Body
+        roundRect(ctx, x, y, w, h, h/3);
+        ctx.stroke(); // Solo borde
+        // Fill (capacidad)
+        ctx.fillStyle = '#FFFFFF';
+        roundRect(ctx, x + 2, y + 2, w - 4, h - 4, h/4);
+        ctx.fill();
+        // Cap (el piquito)
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.arc(x + w + 2, y + h/2, h/4, Math.PI * 0.5, Math.PI * 1.5, true);
+        ctx.fill();
+    }
+
     const draw = () => {
       if (sourceVideo.paused || sourceVideo.ended) return;
       
       const videoWidth = sourceVideo.videoWidth;
       const videoHeight = sourceVideo.videoHeight;
       
-      // --- CROP LOGIC (Get content from stream) ---
+      // Auto-Fit Crop
       const targetRatio = screenLogicalW / screenLogicalH;
       const videoRatio = videoWidth / videoHeight;
-      
       let cropW, cropH;
-      
       if (videoRatio > targetRatio) {
         cropH = videoHeight;
         cropW = cropH * targetRatio;
@@ -102,12 +134,9 @@ async function startRecording(data) {
         cropW = videoWidth;
         cropH = cropW / targetRatio;
       }
-      
       const cropX = (videoWidth - cropW) / 2;
       const cropY = (videoHeight - cropH) / 2;
       
-      // --- DRAW FRAME & CONTENT ---
-      // Scale everything to physical pixels for canvas drawing
       const ctx = processContext;
       const scale = dpr;
       
@@ -118,27 +147,35 @@ async function startRecording(data) {
       const bezelSize = bezel * scale;
       const radius = cornerRadius * scale;
       
-      // 1. Clear Canvas (Transparent)
       ctx.clearRect(0, 0, frameW, frameH);
+
+      // --- Botones Laterales (Silver) ---
+      // Dibujamos antes del marco principal para que queden "detrás" o integrados
+      ctx.fillStyle = '#D1D1D6'; // Silver claro
+      // Izquierda (Silent, Vol+, Vol-)
+      roundRect(ctx, -2*scale, 100*scale, 6*scale, 20*scale, 2*scale);
+      roundRect(ctx, -2*scale, 140*scale, 6*scale, 45*scale, 2*scale);
+      roundRect(ctx, -2*scale, 200*scale, 6*scale, 45*scale, 2*scale);
+      // Derecha (Power)
+      roundRect(ctx, frameW - 4*scale, 160*scale, 6*scale, 70*scale, 2*scale);
+      ctx.fill();
       
-      // 2. Draw Outer Chassis (Metallic/Glossy Rim)
-      // Creates the 3D thickness effect
-      const gradient = ctx.createLinearGradient(0, 0, frameW, frameH);
-      gradient.addColorStop(0, '#333333');
-      gradient.addColorStop(0.2, '#888888'); // Highlight top-left
-      gradient.addColorStop(0.4, '#222222');
-      gradient.addColorStop(0.6, '#222222');
-      gradient.addColorStop(0.8, '#888888'); // Highlight bottom-right
-      gradient.addColorStop(1, '#333333');
+      // --- Marco Exterior (Chasis Metálico Silver) ---
+      // Degradado complejo para simular metal redondeado
+      const grad = ctx.createLinearGradient(0, 0, frameW, 0); // Horizontal gradient looks better for side sheen
+      grad.addColorStop(0, '#8E8E93');   // Darker edge
+      grad.addColorStop(0.05, '#E5E5EA'); // Highlight
+      grad.addColorStop(0.2, '#D1D1D6');  // Mid silver
+      grad.addColorStop(0.8, '#D1D1D6');
+      grad.addColorStop(0.95, '#E5E5EA'); // Highlight
+      grad.addColorStop(1, '#8E8E93');   // Darker edge
       
-      ctx.fillStyle = gradient;
+      ctx.fillStyle = grad;
       roundRect(ctx, 0, 0, frameW, frameH, radius + bezelSize/2); 
       ctx.fill();
       
-      // 3. Draw Inner Black Bezel
-      // Inset slightly to reveal the chassis rim
-      const rimWidth = 4 * scale; 
-      
+      // --- Bisel Negro Interno ---
+      const rimWidth = 3.5 * scale; // Grosor del borde metálico visible frontalmente
       ctx.fillStyle = '#000000'; 
       roundRect(
         ctx, 
@@ -146,77 +183,85 @@ async function startRecording(data) {
         rimWidth, 
         frameW - (rimWidth * 2), 
         frameH - (rimWidth * 2), 
-        radius + bezelSize/2 - 2
+        radius
       ); 
       ctx.fill();
       
-      // 4. Draw Screen Content
-      // We need to mask the screen content to be rounded
+      // --- Pantalla ---
       ctx.save();
-      ctx.translate(bezelSize, bezelSize); // Move to screen area
-      roundRect(ctx, 0, 0, screenW, screenH, radius); // Inner radius
-      ctx.clip(); // Clip to screen shape
+      ctx.translate(bezelSize, bezelSize);
       
-      // Draw Video
-      // Use high quality smoothing
+      // Máscara de pantalla (Esquinas redondeadas internas)
+      // Ajustamos el radio interno para que sea paralelo al externo
+      const innerRadius = radius - (bezelSize - rimWidth); 
+      roundRect(ctx, 0, 0, screenW, screenH, innerRadius);
+      ctx.clip();
+      
+      // Dibujar Video
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(sourceVideo, cropX, cropY, cropW, cropH, 0, 0, screenW, screenH);
       
-      ctx.drawImage(
-        sourceVideo, 
-        cropX, cropY, cropW, cropH, // Source
-        0, 0, screenW, screenH      // Destination
-      );
+      // --- Barra de Estado (Status Bar) ---
+      // Hora (Izquierda)
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }); // 10:09 style
       
-      // Draw inner shadow/border for realism?
-      // ctx.strokeStyle = "rgba(0,0,0,0.1)";
-      // ctx.lineWidth = 4;
-      // ctx.stroke();
+      const statusBarHeight = 44 * scale; // Standard iOS header height approx
+      const textY = statusBarHeight * 0.75;
       
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = `600 ${15 * scale}px -apple-system, BlinkMacSystemFont, sans-serif`;
+      ctx.textAlign = 'center';
+      // Ajuste fino de posición para librar la curva
+      ctx.fillText(timeStr, 50 * scale, textY); 
+      
+      // Iconos (Derecha)
+      const iconY = textY - (11 * scale);
+      const rightMargin = screenW - (25 * scale);
+      
+      // Battery
+      drawBattery(ctx, rightMargin - (25*scale), iconY, 22*scale, 11*scale);
+      
+      // WiFi
+      drawWifi(ctx, rightMargin - (55*scale), iconY - (2*scale), 16*scale);
+      
+      // Signal
+      drawSignal(ctx, rightMargin - (80*scale), iconY, 17*scale, 11*scale);
+
       ctx.restore();
       
-      // 5. Draw Notch / Dynamic Island
-      const notchW = screenW * 0.3;
-      const notchH = notchW * 0.3; // Aspect ratio of dynamic island roughly
+      // --- Dynamic Island / Notch (Negro Puro) ---
+      const notchW = screenW * 0.3; // ~120px logical width approx
+      const notchH = 35 * scale;    // ~35px height
       const notchX = (frameW - notchW) / 2;
-      const notchY = bezelSize + (notchH * 0.3); // Positioned slightly down from top bezel
+      const notchY = bezelSize + (12 * scale); // Top margin inside screen
       
       ctx.fillStyle = '#000000';
       roundRect(ctx, notchX, notchY, notchW, notchH, notchH/2);
       ctx.fill();
-
-      // 6. Draw Home Indicator (Bottom Line)
-      // Only if desired. Chrome emulation often lacks it.
-      const hiW = homeIndicatorW * scale;
-      const hiH = homeIndicatorH * scale; // Thickness
-      const hiX = (frameW - hiW) / 2;
-      const hiY = frameH - bezelSize - (15 * scale); // 15px logical from bottom
       
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      // Lente de la cámara (reflejo sutil dentro de la isla)
+      ctx.fillStyle = '#1A1A1A'; // Gris muy oscuro
+      ctx.beginPath();
+      ctx.arc(notchX + notchW - (12*scale), notchY + notchH/2, 6*scale, 0, Math.PI*2);
+      ctx.fill();
+
+      // --- Home Indicator ---
+      const hiW = homeIndicatorW * scale;
+      const hiH = homeIndicatorH * scale;
+      const hiX = (frameW - hiW) / 2;
+      const hiY = frameH - bezelSize - (8 * scale); // Pegado abajo
+      
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; // Blanco brillante
       roundRect(ctx, hiX, hiY, hiW, hiH, hiH/2);
       ctx.fill();
-      
-      // 7. Glossy reflection on bezel (Optional - subtle)
-      // Linear gradient
-      /*
-      const grad = ctx.createLinearGradient(0, 0, frameW, frameH);
-      grad.addColorStop(0, 'rgba(255,255,255,0.1)');
-      grad.addColorStop(0.5, 'rgba(255,255,255,0)');
-      grad.addColorStop(1, 'rgba(255,255,255,0.05)');
-      ctx.fillStyle = grad;
-      roundRect(ctx, 0, 0, frameW, frameH, radius + bezelSize/2);
-      ctx.fill();
-      */
-
     };
     
-    // 30 FPS
     animationId = setInterval(draw, 1000 / 30);
     
-    // 5. Create stream from canvas
     canvasStream = processCanvas.captureStream(30);
     
-    // 6. Start MediaRecorder
     let mimeType = 'video/webm;codecs=vp9';
     if (MediaRecorder.isTypeSupported('video/mp4')) {
       mimeType = 'video/mp4';
@@ -224,11 +269,9 @@ async function startRecording(data) {
       mimeType = 'video/webm;codecs=h264';
     }
 
-    console.log('Using mimeType:', mimeType);
-
     mediaRecorder = new MediaRecorder(canvasStream, { 
       mimeType: mimeType,
-      videoBitsPerSecond: 8000000 // 8Mbps for high quality with frame
+      videoBitsPerSecond: 8000000 
     });
     recordedChunks = [];
 
