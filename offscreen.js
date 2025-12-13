@@ -204,9 +204,18 @@ async function startRecording(data) {
       
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
+      
+      // Safety Zoom: Recortamos un 1% por cada lado (zoom 102%) para eliminar márgenes extraños
+      // o barras de scroll que puedan aparecer en el borde derecho.
+      const zoomFactor = 0.98; 
+      const cleanCropW = cropW * zoomFactor;
+      const cleanCropH = cropH * zoomFactor;
+      const cleanCropX = cropX + (cropW - cleanCropW) / 2;
+      const cleanCropY = cropY + (cropH - cleanCropH) / 2;
+
       ctx.drawImage(
         sourceVideo, 
-        cropX, cropY, cropW, cropH, 
+        cleanCropX, cleanCropY, cleanCropW, cleanCropH, 
         0, statusBarHeight, screenW, videoDestH 
       );
       
