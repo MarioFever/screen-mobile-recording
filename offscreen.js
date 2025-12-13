@@ -114,19 +114,6 @@ async function startRecording(data) {
     const colorCanvas = new OffscreenCanvas(1, 1);
     const colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
 
-    let gif;
-    let frameCounter = 0;
-    
-    // Initialize GIF encoder
-    // Quality 10, width/height same as canvas
-    gif = new GIF({
-      workers: 2,
-      quality: 10,
-      width: processCanvas.width,
-      height: processCanvas.height,
-      workerScript: 'libs/gif.worker.js'
-    });
-
     const draw = () => {
       if (sourceVideo.paused || sourceVideo.ended) return;
       
@@ -270,13 +257,6 @@ async function startRecording(data) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
       roundRect(ctx, hiX, hiY, hiW, hiH, hiH/2);
       ctx.fill();
-      
-      // --- GIF Capturing ---
-      // Capture 1 frame every 3 draws (approx 10fps) to save memory/processing
-      if (frameCounter % 3 === 0) {
-        gif.addFrame(ctx, { copy: true, delay: 100 });
-      }
-      frameCounter++;
     };
     
     animationId = setInterval(draw, 1000 / 30);
@@ -303,45 +283,24 @@ async function startRecording(data) {
     };
 
     mediaRecorder.onstop = () => {
-      // 1. Process Video
       const blob = new Blob(recordedChunks, { type: mimeType });
       const url = URL.createObjectURL(blob);
       const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-      const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
       
       chrome.runtime.sendMessage({
         type: 'DOWNLOAD_RECORDING',
         url: url,
-        filename: `mobile-recording-${timestamp}.${ext}`
+        filename: `mobile-recording-${new Date().toISOString().replace(/:/g, '-').split('.')[0]}.${ext}`
       });
-
-      // 2. Process GIF
-      statusDiv.textContent = 'Rendering GIF...';
-      gif.on('finished', (blob) => {
-        const gifUrl = URL.createObjectURL(blob);
-        chrome.runtime.sendMessage({
-          type: 'DOWNLOAD_RECORDING',
-          url: gifUrl,
-          filename: `mobile-recording-${timestamp}.gif`
-        });
-        
-        // Clean up after both are sent
-        setTimeout(() => {
-            URL.revokeObjectURL(url);
-            URL.revokeObjectURL(gifUrl);
-            cleanup();
-        }, 5000);
-      });
-
-      gif.render();
       
-      function cleanup() {
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
         clearInterval(animationId);
         if (stream) stream.getTracks().forEach(track => track.stop());
         if (canvasStream) canvasStream.getTracks().forEach(track => track.stop());
         sourceVideo.srcObject = null;
         statusDiv.textContent = 'Idle';
-      }
+      }, 5000);
     };
 
     mediaRecorder.start();
