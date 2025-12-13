@@ -27,7 +27,6 @@ async function setupOffscreenDocument(path) {
 }
 
 let creating; // Promise keeper
-
 let isRecording = false;
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
@@ -39,6 +38,18 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     isRecording = false;
   } else if (message.type === 'GET_RECORDING_STATE') {
     sendResponse({ isRecording });
+  } else if (message.type === 'DOWNLOAD_RECORDING') {
+    // Handle download from background to avoid offscreen limitations
+    chrome.downloads.download({
+      url: message.url,
+      filename: message.filename
+    }, (downloadId) => {
+      if (chrome.runtime.lastError) {
+        console.error('Download failed:', chrome.runtime.lastError);
+      } else {
+        console.log('Download started, ID:', downloadId);
+      }
+    });
   }
 });
 
@@ -61,9 +72,6 @@ async function startCapture(tabId) {
 
     // 2. Get Media Stream ID
     const streamId = await chrome.tabCapture.getMediaStreamId({
-      consumerTabId: tabId, // Wait, we pass the *target* tab ID? No, consumer is usually the one *using* it.
-      // Actually, for offscreen document, we might not need to specify consumerTabId if we are the extension.
-      // But let's try passing the target tabId as the target.
       targetTabId: tabId
     });
 
@@ -71,18 +79,22 @@ async function startCapture(tabId) {
     await setupOffscreenDocument('offscreen.html');
 
     // 4. Send start message to offscreen
-    chrome.runtime.sendMessage({
-      target: 'offscreen',
-      type: 'START_RECORDING',
-      data: {
-        streamId: streamId,
-        width: dimensions.width,
-        height: dimensions.height,
-        devicePixelRatio: dimensions.devicePixelRatio
-      }
-    });
+    // Wait a bit to ensure offscreen is ready receiving messages
+    setTimeout(() => {
+      chrome.runtime.sendMessage({
+        target: 'offscreen',
+        type: 'START_RECORDING',
+        data: {
+          streamId: streamId,
+          width: dimensions.width,
+          height: dimensions.height,
+          devicePixelRatio: dimensions.devicePixelRatio
+        }
+      });
+    }, 500);
 
   } catch (err) {
     console.error('Error starting capture:', err);
+    isRecording = false; // Reset state on error
   }
 }
