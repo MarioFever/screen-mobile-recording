@@ -8,9 +8,16 @@
   // Create Shadow DOM Root to isolate styles
   const host = document.createElement('div');
   host.id = 'smr-overlay-root';
-  document.documentElement.appendChild(host); // Append to HTML to be above everything
   
-  const shadow = host.attachShadow({ mode: 'closed' });
+  // Append to document.body instead of documentElement to avoid some root-level stacking context issues
+  // or layout shifts.
+  if (document.body) {
+    document.body.appendChild(host);
+  } else {
+    document.documentElement.appendChild(host);
+  }
+  
+  const shadow = host.attachShadow({ mode: 'open' }); // Switch to open for debugging if needed
 
   // Add Styles inline to ensure they load regardless of file access issues
   const style = document.createElement('style');
