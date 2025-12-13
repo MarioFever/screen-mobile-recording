@@ -121,13 +121,34 @@ async function startRecording(data) {
       // 1. Clear Canvas (Transparent)
       ctx.clearRect(0, 0, frameW, frameH);
       
-      // 2. Draw Bezel (Body) - Black
-      ctx.fillStyle = '#000000'; // Deep black for OLED look
-      roundRect(ctx, 0, 0, frameW, frameH, radius + bezelSize/2); // Outer radius
+      // 2. Draw Outer Chassis (Metallic/Glossy Rim)
+      // Creates the 3D thickness effect
+      const gradient = ctx.createLinearGradient(0, 0, frameW, frameH);
+      gradient.addColorStop(0, '#333333');
+      gradient.addColorStop(0.2, '#888888'); // Highlight top-left
+      gradient.addColorStop(0.4, '#222222');
+      gradient.addColorStop(0.6, '#222222');
+      gradient.addColorStop(0.8, '#888888'); // Highlight bottom-right
+      gradient.addColorStop(1, '#333333');
+      
+      ctx.fillStyle = gradient;
+      roundRect(ctx, 0, 0, frameW, frameH, radius + bezelSize/2); 
       ctx.fill();
       
-      // 3. Draw Inner Border (Screen Edge) - Dark Gray/Stroke
-      // Optional: Add a subtle stroke around screen
+      // 3. Draw Inner Black Bezel
+      // Inset slightly to reveal the chassis rim
+      const rimWidth = 4 * scale; 
+      
+      ctx.fillStyle = '#000000'; 
+      roundRect(
+        ctx, 
+        rimWidth, 
+        rimWidth, 
+        frameW - (rimWidth * 2), 
+        frameH - (rimWidth * 2), 
+        radius + bezelSize/2 - 2
+      ); 
+      ctx.fill();
       
       // 4. Draw Screen Content
       // We need to mask the screen content to be rounded
