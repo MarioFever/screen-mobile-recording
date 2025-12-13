@@ -9,8 +9,12 @@
     "scripting",
     "tabCapture",
     "offscreen",
-    "downloads"
+    "downloads",
+    "sidePanel"
   ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
   "host_permissions": [
     "<all_urls>"
   ],

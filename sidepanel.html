@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Recording Controls</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #202124;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      height: 100vh;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 24px;
+      font-weight: 500;
+    }
+
+    .dot {
+      width: 16px;
+      height: 16px;
+      background-color: #ff4444;
+      border-radius: 50%;
+      box-shadow: 0 0 10px #ff4444;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.9); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .timer {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stop-btn {
+      background: #ff4757;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 24px;
+      color: white;
+      font-weight: 600;
+      font-size: 16px;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .stop-btn:hover {
+      background: #ff6b81;
+    }
+
+    .info {
+      font-size: 13px;
+      color: #aaa;
+      text-align: center;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="status-row">
+      <div class="dot"></div>
+      <div id="timer" class="timer">00:00</div>
+    </div>
+    
+    <button id="stopBtn" class="stop-btn">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <rect x="2" y="2" width="12" height="12" rx="2" />
+      </svg>
+      Stop Recording
+    </button>
+
+    <p class="info">
+      Recording in progress.<br>
+      Controls are here to keep your video clean.
+    </p>
+  </div>
+  <script src="sidepanel.js"></script>
+</body>
+</html>
+
