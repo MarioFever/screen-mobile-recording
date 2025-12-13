@@ -46,8 +46,13 @@ async function startRecording(data) {
     const screenLogicalW = width;
     const screenLogicalH = height;
 
-    const bezel = Math.round(screenLogicalW * 0.045);
-    const cornerRadius = Math.round(screenLogicalW * 0.13);
+    // Use fixed geometry based on iPhone reference to keep consistent look across devices
+    // iPhone 14 Pro Max ref: ~430px width -> ~20px bezel
+    const bezel = 20; 
+    const cornerRadius = 55;
+    
+    // Adjust home indicator relative to width still? Or fixed?
+    // "homeIndicatorW" being 35% of width is probably fine for tablets too (iPad home bar is long).
     const homeIndicatorW = Math.round(screenLogicalW * 0.35);
     const homeIndicatorH = Math.round(5 * (dpr/3));
     
