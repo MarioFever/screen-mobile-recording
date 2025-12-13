@@ -45,11 +45,9 @@ async function startRecording(data) {
     processContext = processCanvas.getContext('2d', { alpha: false });
 
     // Handle High DPI displays (Host System Scaling)
-    // The tabCapture stream usually provides physical pixels (or scaled by host DPR).
-    // The 'width' parameter is in logical CSS pixels (e.g. 430).
-    // We need to match the stream's density.
-    // window.devicePixelRatio in the offscreen document reflects the host system's scaling.
-    const dpr = window.devicePixelRatio || 1;
+    // We use the passed devicePixelRatio which should be the HOST system dpr from popup
+    // or fallback to offscreen window's dpr.
+    const dpr = devicePixelRatio || window.devicePixelRatio || 1;
     
     console.log(`Logical size: ${width}x${height}, DPR: ${dpr}`);
 

@@ -31,7 +31,7 @@ let isRecording = false;
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === 'START_RECORDING_REQUEST') {
-    startCapture(message.tabId);
+    startCapture(message.tabId, message.hostDPR);
     isRecording = true;
   } else if (message.type === 'STOP_RECORDING_REQUEST') {
     chrome.runtime.sendMessage({ target: 'offscreen', type: 'STOP_RECORDING' });
@@ -53,7 +53,7 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   }
 });
 
-async function startCapture(tabId) {
+async function startCapture(tabId, hostDPR) {
   try {
     // 1. Get tab info/dimensions via scripting
     const results = await chrome.scripting.executeScript({
@@ -69,6 +69,9 @@ async function startCapture(tabId) {
     
     const dimensions = results[0].result;
     console.log('Detected dimensions:', dimensions);
+    
+    // Use hostDPR if provided, fallback to detected (which might be emulated/wrong) or 1
+    const dpr = hostDPR || 1;
 
     // 2. Get Media Stream ID
     const streamId = await chrome.tabCapture.getMediaStreamId({
@@ -88,7 +91,7 @@ async function startCapture(tabId) {
           streamId: streamId,
           width: dimensions.width,
           height: dimensions.height,
-          devicePixelRatio: dimensions.devicePixelRatio
+          devicePixelRatio: dpr // Pass the Host System DPR
         }
       });
     }, 500);
