@@ -28,21 +28,40 @@ async function setupOffscreenDocument(path) {
 
 let creating; // Promise keeper
 let isRecording = false;
-let recordingTabId = null;
+let controlsWindowId = null;
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === 'START_RECORDING_REQUEST') {
+    // Open small controls window
+    // Position it top-right of the screen by default
+    const systemDisplayInfo = await new Promise(r => chrome.system.display.getInfo(r)).catch(() => []);
+    let left = 1000; // Default fallback
+    if (systemDisplayInfo.length > 0) {
+      const primary = systemDisplayInfo.find(d => d.isPrimary) || systemDisplayInfo[0];
+      left = primary.workArea.left + primary.workArea.width - 250; // 250px from right edge
+    }
+
+    chrome.windows.create({
+      url: 'controls.html',
+      type: 'popup',
+      width: 200,
+      height: 80,
+      left: Math.round(left),
+      top: 100,
+      focused: true
+    }).then(win => {
+      controlsWindowId = win.id;
+    });
+
     startCapture(message.tabId, message.showNotch);
     isRecording = true;
-    recordingTabId = message.tabId;
   } else if (message.type === 'STOP_RECORDING_REQUEST') {
     chrome.runtime.sendMessage({ target: 'offscreen', type: 'STOP_RECORDING' });
     isRecording = false;
     
-    // Clean up UI in the recorded tab
-    if (recordingTabId) {
-      chrome.tabs.sendMessage(recordingTabId, { type: 'RECORDING_STOPPED' }).catch(() => {});
-      recordingTabId = null;
+    if (controlsWindowId) {
+      chrome.windows.remove(controlsWindowId).catch(() => {});
+      controlsWindowId = null;
     }
   } else if (message.type === 'GET_RECORDING_STATE') {
     sendResponse({ isRecording });
