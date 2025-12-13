@@ -69,6 +69,11 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         console.log('Download started, ID:', downloadId);
       }
     });
+  } else if (message.type === 'RECORDING_ERROR') {
+    console.error('Recording error from offscreen:', message.error);
+    stopRecording();
+    chrome.action.setBadgeText({ text: 'ERR' });
+    chrome.action.setBadgeBackgroundColor({ color: '#FF0000' });
   }
 });
 
@@ -160,7 +165,7 @@ async function startCapture(tabId, showNotch = true, showFrame = true) {
     await setupOffscreenDocument('offscreen.html');
 
     // 4. Send start message to offscreen
-    // Wait a bit to ensure offscreen is ready receiving messages
+    // Small buffer to ensure message listener is fully bound if just created
     setTimeout(() => {
       chrome.runtime.sendMessage({
         target: 'offscreen',
