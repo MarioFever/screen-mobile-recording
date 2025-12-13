@@ -144,7 +144,19 @@ async function startCapture(tabId, showNotch = true) {
         }
       });
       
-      // Floating UI injection removed
+      // Inject script to force links to open in same tab
+      chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        func: () => {
+          // Add a capture phase click listener to intercept clicks
+          window.addEventListener('click', (e) => {
+            const link = e.target.closest('a');
+            if (link && link.target === '_blank') {
+              link.target = '_self';
+            }
+          }, true);
+        }
+      });
       
     }, 500);
 
