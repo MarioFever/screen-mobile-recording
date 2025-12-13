@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
   const startBtn = document.getElementById('start-btn');
-  const statusText = document.querySelector('.recording-controls p');
   const notchToggle = document.getElementById('notch-toggle');
   
   // Load saved setting
@@ -26,12 +25,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (recording) {
       startBtn.textContent = 'Stop Recording';
       startBtn.style.background = '#ff4757';
-      statusText.textContent = 'Recording...';
+      // statusText removed
       notchToggle.disabled = true; // Disable toggle while recording
     } else {
       startBtn.textContent = 'Start Recording';
       startBtn.style.background = '#00d4aa';
-      statusText.textContent = 'Ready to record';
+      // statusText removed
       notchToggle.disabled = false;
     }
   }

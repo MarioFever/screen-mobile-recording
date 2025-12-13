@@ -69,7 +69,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #252836; /* Match reference body background */
+  background: #252836;
+  padding: 40px 20px; /* Add breathing room */
 }
 
 .check-btn {

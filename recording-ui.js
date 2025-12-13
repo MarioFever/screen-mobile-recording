@@ -9,6 +9,9 @@
   const container = document.createElement('div');
   container.id = 'smr-floating-ui';
   container.className = 'smr-floating-controls';
+  
+  // Show immediately
+  container.style.display = 'flex';
 
   // Red Dot
   const dot = document.createElement('div');

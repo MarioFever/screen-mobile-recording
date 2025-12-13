@@ -1,6 +1,6 @@
 .smr-floating-controls {
   position: fixed;
-  top: 20px;
+  top: 80px; /* Moved down to avoid extensions bar/bookmarks */
   right: 20px;
   background: #202124;
   color: #fff;
@@ -17,7 +17,21 @@
   transition: opacity 0.3s ease;
   user-select: none;
   border: 1px solid rgba(255,255,255,0.1);
+  display: none; /* Hidden by default until we check viewport */
 }
+
+/* Ensure it's not captured by tabCapture if possible, 
+   but tabCapture captures everything rendered. 
+   The only way to hide it from capture is to put it in a shadow DOM 
+   or ensure the capture area excludes it. 
+   
+   However, our capture area IS the center mobile view.
+   If the floating control is in the top-right corner of the desktop window,
+   and the mobile view is centered, it SHOULD be outside the crop area naturally.
+   
+   Let's ensure it's positioned absolutely relative to viewport 
+   and far enough to the right to be outside the mobile crop.
+*/
 
 .smr-dot {
   width: 10px;
