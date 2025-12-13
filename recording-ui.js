@@ -27,13 +27,16 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       overflow: visible;
       display: block !important;
+      /* Ensure it stays fixed relative to the viewport, ignoring parent transforms */
+      contain: layout size style; 
     }
     .smr-controls-box {
       position: absolute;
       top: 10px;
       right: 20px;
-      background: #202124;
-      color: #fff;
+      /* Ensure high contrast and visibility */
+      background: #202124 !important;
+      color: #fff !important;
       padding: 8px 16px;
       border-radius: 40px;
       display: flex;
