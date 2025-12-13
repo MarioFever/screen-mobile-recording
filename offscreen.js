@@ -192,28 +192,40 @@ async function startRecording(data) {
       ctx.translate(bezelSize, bezelSize);
       
       // Máscara de pantalla (Esquinas redondeadas internas)
-      // Ajustamos el radio interno para que sea paralelo al externo
       const innerRadius = radius - (bezelSize - rimWidth); 
       roundRect(ctx, 0, 0, screenW, screenH, innerRadius);
       ctx.clip();
       
-      // Dibujar Video
+      // Definir altura de la barra superior (Status Bar Area)
+      // Ajustamos para que cubra la isla dinámica y un poco más
+      const statusBarHeight = 50 * scale; 
+      
+      // 1. Dibujar Fondo de Barra Superior (Negro/Oscuro)
+      ctx.fillStyle = '#000000'; // Negro sólido para ocultar notch
+      ctx.fillRect(0, 0, screenW, statusBarHeight);
+      
+      // 2. Dibujar Video (Desplazado hacia abajo y reescalado para ajustar)
+      // Esto evita que el notch tape contenido del video
+      const videoDestH = screenH - statusBarHeight;
+      
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(sourceVideo, cropX, cropY, cropW, cropH, 0, 0, screenW, screenH);
+      ctx.drawImage(
+        sourceVideo, 
+        cropX, cropY, cropW, cropH, // Source (Full video)
+        0, statusBarHeight, screenW, videoDestH // Destination (Below status bar)
+      );
       
       // --- Barra de Estado (Status Bar) ---
       // Hora (Izquierda)
       const now = new Date();
-      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }); // 10:09 style
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }); 
       
-      const statusBarHeight = 44 * scale; // Standard iOS header height approx
-      const textY = statusBarHeight * 0.75;
+      const textY = statusBarHeight * 0.65; // Centrado verticalmente en la barra
       
       ctx.fillStyle = '#FFFFFF';
       ctx.font = `600 ${15 * scale}px -apple-system, BlinkMacSystemFont, sans-serif`;
       ctx.textAlign = 'center';
-      // Ajuste fino de posición para librar la curva
       ctx.fillText(timeStr, 50 * scale, textY); 
       
       // Iconos (Derecha)
@@ -232,17 +244,18 @@ async function startRecording(data) {
       ctx.restore();
       
       // --- Dynamic Island / Notch (Negro Puro) ---
-      const notchW = screenW * 0.3; // ~120px logical width approx
-      const notchH = 35 * scale;    // ~35px height
+      // Se dibuja encima de todo por si acaso, aunque el fondo ya es negro
+      const notchW = screenW * 0.3; 
+      const notchH = 35 * scale;    
       const notchX = (frameW - notchW) / 2;
-      const notchY = bezelSize + (12 * scale); // Top margin inside screen
+      const notchY = bezelSize + (12 * scale); 
       
       ctx.fillStyle = '#000000';
       roundRect(ctx, notchX, notchY, notchW, notchH, notchH/2);
       ctx.fill();
       
-      // Lente de la cámara (reflejo sutil dentro de la isla)
-      ctx.fillStyle = '#1A1A1A'; // Gris muy oscuro
+      // Lente de la cámara
+      ctx.fillStyle = '#111111'; // Apenas visible sobre negro
       ctx.beginPath();
       ctx.arc(notchX + notchW - (12*scale), notchY + notchH/2, 6*scale, 0, Math.PI*2);
       ctx.fill();
