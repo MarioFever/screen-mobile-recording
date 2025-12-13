@@ -19,11 +19,7 @@
   border: 1px solid rgba(255,255,255,0.1);
   display: flex; 
   cursor: grab;
-  opacity: 0.1; /* Almost invisible by default */
-}
-
-.smr-floating-controls:hover {
-  opacity: 1; /* Fully visible on hover */
+  opacity: 1; /* Always visible */
 }
 
 .smr-floating-controls:active {
