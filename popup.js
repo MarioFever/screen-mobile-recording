@@ -32,8 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Start
         chrome.runtime.sendMessage({ 
           type: 'START_RECORDING_REQUEST',
-          tabId: tab.id,
-          hostDPR: window.devicePixelRatio // Send host system DPR
+          tabId: tab.id
         });
         updateUI(true);
       } else {

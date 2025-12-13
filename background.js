@@ -53,7 +53,7 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   }
 });
 
-async function startCapture(tabId, hostDPR) {
+async function startCapture(tabId) {
   try {
     // 1. Get tab info/dimensions via scripting
     const results = await chrome.scripting.executeScript({
@@ -69,9 +69,6 @@ async function startCapture(tabId, hostDPR) {
     
     const dimensions = results[0].result;
     console.log('Detected dimensions:', dimensions);
-    
-    // Use hostDPR if provided, fallback to detected (which might be emulated/wrong) or 1
-    const dpr = hostDPR || 1;
 
     // 2. Get Media Stream ID
     const streamId = await chrome.tabCapture.getMediaStreamId({
@@ -91,7 +88,7 @@ async function startCapture(tabId, hostDPR) {
           streamId: streamId,
           width: dimensions.width,
           height: dimensions.height,
-          devicePixelRatio: dpr // Pass the Host System DPR
+          devicePixelRatio: dimensions.devicePixelRatio // Use Emulated DPR
         }
       });
     }, 500);
