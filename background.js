@@ -112,10 +112,6 @@ async function startCapture(tabId, showNotch = true) {
       });
       
       // Inject Floating UI (Overlay)
-      chrome.scripting.insertCSS({
-        target: { tabId: tabId },
-        files: ['recording-ui.css']
-      });
       chrome.scripting.executeScript({
         target: { tabId: tabId },
         files: ['recording-ui.js']
