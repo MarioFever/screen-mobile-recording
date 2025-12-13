@@ -27,14 +27,11 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       overflow: visible;
       display: block !important;
-      /* Ensure it stays fixed relative to the viewport, ignoring parent transforms */
-      contain: layout size style; 
     }
     .smr-controls-box {
       position: absolute;
-      top: 10px;
+      top: 80px; /* Default start position */
       right: 20px;
-      /* Ensure high contrast and visibility */
       background: #202124 !important;
       color: #fff !important;
       padding: 8px 16px;
@@ -45,9 +42,12 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       pointer-events: auto;
       border: 1px solid rgba(255,255,255,0.1);
-      opacity: 0;
-      transform: translateY(-20px);
-      animation: smr-slide-in 0.3s forwards ease-out;
+      cursor: grab;
+      user-select: none;
+      transition: opacity 0.3s;
+    }
+    .smr-controls-box:active {
+      cursor: grabbing;
     }
     @keyframes smr-slide-in {
       to { opacity: 1; transform: translateY(0); }
@@ -126,6 +126,55 @@
   box.appendChild(stopBtn);
   container.appendChild(box);
   shadow.appendChild(container);
+
+  // Drag Logic
+  let isDragging = false;
+  let currentX;
+  let currentY;
+  let initialX;
+  let initialY;
+  let xOffset = 0;
+  let yOffset = 0;
+
+  box.addEventListener("mousedown", dragStart);
+  window.addEventListener("mouseup", dragEnd);
+  window.addEventListener("mousemove", drag);
+
+  function dragStart(e) {
+    // Ignore if clicking the stop button
+    if (e.target.closest('.smr-stop-btn')) return;
+    
+    initialX = e.clientX - xOffset;
+    initialY = e.clientY - yOffset;
+
+    if (e.target === box || box.contains(e.target)) {
+      isDragging = true;
+    }
+  }
+
+  function dragEnd(e) {
+    initialX = currentX;
+    initialY = currentY;
+    isDragging = false;
+  }
+
+  function drag(e) {
+    if (isDragging) {
+      e.preventDefault();
+      
+      currentX = e.clientX - initialX;
+      currentY = e.clientY - initialY;
+
+      xOffset = currentX;
+      yOffset = currentY;
+
+      // Update position (using translate for better performance)
+      box.style.transform = `translate(${currentX}px, ${currentY}px)`;
+      // Disable the slide-in animation transform override
+      box.style.animation = 'none';
+      box.style.opacity = '1';
+    }
+  }
 
   // Timer Logic
   function updateTimer() {

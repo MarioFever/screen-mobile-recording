@@ -32,10 +32,8 @@ let recordingTabId = null;
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === 'START_RECORDING_REQUEST') {
-    // Open Side Panel IMMEDIATELY to capture user gesture
-    // Must be done before any await or async work if possible, or strictly within the synchronous chain promise
-    // chrome.sidePanel.open requires a user gesture.
-    chrome.sidePanel.open({ tabId: message.tabId }).catch(err => console.error("Failed to open side panel:", err));
+    // Open Side Panel disabled, reverting to Overlay
+    // chrome.sidePanel.open({ tabId: message.tabId }).catch(err => console.error("Failed to open side panel:", err));
 
     startCapture(message.tabId, message.showNotch);
     isRecording = true;
