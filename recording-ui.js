@@ -30,8 +30,11 @@
     }
     .smr-controls-box {
       position: absolute;
-      top: 80px; /* Default start position */
+      top: 80px; 
       right: 20px;
+      /* Force it to be fixed relative to viewport even if parent transforms exist (partially) */
+      position: fixed; 
+      
       background: #202124 !important;
       color: #fff !important;
       padding: 8px 16px;
@@ -45,6 +48,9 @@
       cursor: grab;
       user-select: none;
       transition: opacity 0.3s;
+      
+      /* Ensure it stays on top of everything inside the shadow root */
+      z-index: 9999;
     }
     .smr-controls-box:active {
       cursor: grabbing;
