@@ -33,21 +33,23 @@ let controlsWindowId = null;
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === 'START_RECORDING_REQUEST') {
     // Open small controls window
-    // Position it top-right of the screen by default
+    // Calculate position based on current window to ensure it's on the same screen
+    const currentWindow = await chrome.windows.getCurrent();
     const systemDisplayInfo = await new Promise(r => chrome.system.display.getInfo(r)).catch(() => []);
-    let left = 1000; // Default fallback
-    if (systemDisplayInfo.length > 0) {
-      const primary = systemDisplayInfo.find(d => d.isPrimary) || systemDisplayInfo[0];
-      left = primary.workArea.left + primary.workArea.width - 250; // 250px from right edge
-    }
+    
+    let left = currentWindow.left + currentWindow.width - 220; // Default to top-right of current window
+    let top = currentWindow.top + 80;
 
+    // Validate bounds if possible using systemDisplayInfo (optional refinement)
+    // For now, relying on relative window position is a good heuristic for "same screen"
+    
     chrome.windows.create({
       url: 'controls.html',
       type: 'popup',
       width: 200,
       height: 80,
       left: Math.round(left),
-      top: 100,
+      top: Math.round(top),
       focused: true
     }).then(win => {
       controlsWindowId = win.id;
@@ -130,15 +132,7 @@ async function startCapture(tabId, showNotch = true) {
         }
       });
       
-      // Inject Floating UI
-      chrome.scripting.insertCSS({
-        target: { tabId: tabId },
-        files: ['recording-ui.css']
-      });
-      chrome.scripting.executeScript({
-        target: { tabId: tabId },
-        files: ['recording-ui.js']
-      });
+      // Floating UI injection removed
       
     }, 500);
 
