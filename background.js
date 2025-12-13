@@ -83,6 +83,12 @@ function stopRecording() {
   if (!isRecording) return;
   
   chrome.runtime.sendMessage({ target: 'offscreen', type: 'STOP_RECORDING' });
+  
+  // Detach debugger to restore view
+  if (recordingTabId) {
+    chrome.debugger.detach({ tabId: recordingTabId }).catch(() => {});
+  }
+  
   isRecording = false;
   
   // Clear Timer
@@ -124,21 +130,24 @@ function injectLinkEnforcer(tabId) {
 
 async function startCapture(tabId, showNotch = true) {
   try {
-    // 1. Get tab info/dimensions via scripting
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: tabId },
-      func: () => {
-        return {
-          width: window.innerWidth,
-          height: window.innerHeight,
-          devicePixelRatio: window.devicePixelRatio
-        };
-      }
+    // 1. Enable Debugger for Mobile Emulation (Clean View without Tooltips)
+    await chrome.debugger.attach({ tabId: tabId }, "1.3");
+    
+    await chrome.debugger.sendCommand({ tabId: tabId }, "Emulation.setDeviceMetricsOverride", {
+      width: 430,
+      height: 932,
+      deviceScaleFactor: 3,
+      mobile: true,
+      fitWindow: true
     });
     
-    const dimensions = results[0].result;
-    console.log('Detected dimensions:', dimensions);
+    await chrome.debugger.sendCommand({ tabId: tabId }, "Emulation.setTouchEmulationEnabled", {
+      enabled: true
+    });
     
+    // Slight delay to allow layout to update
+    await new Promise(r => setTimeout(r, 500));
+
     // 2. Get Media Stream ID
     const streamId = await chrome.tabCapture.getMediaStreamId({
       targetTabId: tabId
@@ -165,9 +174,9 @@ async function startCapture(tabId, showNotch = true) {
         type: 'START_RECORDING',
         data: {
           streamId: streamId,
-          width: dimensions.width,
-          height: dimensions.height,
-          devicePixelRatio: dimensions.devicePixelRatio,
+          width: 430, // Hardcoded to match emulation
+          height: 932,
+          devicePixelRatio: 3,
           showNotch: showNotch
         }
       });

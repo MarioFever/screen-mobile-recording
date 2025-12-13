@@ -10,7 +10,8 @@
     "tabCapture",
     "offscreen",
     "downloads",
-    "system.display"
+    "system.display",
+    "debugger"
   ],
   "host_permissions": [
     "<all_urls>"
