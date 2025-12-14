@@ -36,11 +36,11 @@ async function startRecording(data) {
     sourceVideo.srcObject = null;
   }
   
-    const { streamId, width, height, devicePixelRatio, showNotch, showFrame, recordMP4, recordWebM, bgStyle } = data;
-    console.log('Starting recording with bgStyle:', bgStyle);
+    const { streamId, width, height, devicePixelRatio, showNotch, showFrame, recordMP4, recordWebM, bgStyle, mode } = data;
+    console.log('Starting capture with bgStyle:', bgStyle, 'Mode:', mode);
   
     const statusDiv = document.getElementById('status');
-  statusDiv.textContent = 'Starting recording...';
+    statusDiv.textContent = mode === 'screenshot' ? 'Taking screenshot...' : 'Starting recording...';
 
   try {
     stream = await navigator.mediaDevices.getUserMedia({
@@ -181,14 +181,15 @@ async function startRecording(data) {
       ctx.globalAlpha = 1.0;
       ctx.globalCompositeOperation = 'source-over';
       
-      if (bgStyle && bgStyle !== 'transparent' && bgStyle !== 'transparent-force') {
+      if (bgStyle && bgStyle !== 'transparent' && bgStyle !== 'transparent-force' && mode !== 'screenshot') {
           // Fill with solid color
           ctx.fillStyle = bgStyle;
           ctx.fillRect(0, 0, processCanvas.width, processCanvas.height);
       } else {
           // Transparent clearing
           // Use destination-out for 'transparent-force' to be extra aggressive
-          if (bgStyle === 'transparent-force') {
+          // Also force transparency for screenshots
+          if (bgStyle === 'transparent-force' || mode === 'screenshot') {
               ctx.globalCompositeOperation = 'destination-out';
               ctx.fillStyle = '#000000';
               ctx.fillRect(0, 0, processCanvas.width, processCanvas.height);
@@ -326,6 +327,32 @@ async function startRecording(data) {
     // Start drawing loop
     // Use setInterval to ensure constant frame rate even if source is static
     // This is crucial for MediaRecorder stability
+    
+    if (mode === 'screenshot') {
+      // Wait a bit for the video to actually have a frame
+      setTimeout(() => {
+        draw();
+        
+        processCanvas.toBlob((blob) => {
+            const url = URL.createObjectURL(blob);
+            chrome.runtime.sendMessage({
+                type: 'DOWNLOAD_RECORDING',
+                url: url,
+                filename: `mobile-screenshot-${new Date().toISOString().replace(/:/g, '-').split('.')[0]}.png`
+            });
+            
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+            
+            // Cleanup
+            statusDiv.textContent = 'Screenshot taken';
+            stopRecording();
+            
+        }, 'image/png');
+      }, 500); // 500ms delay to ensure frame is ready
+      
+      return; 
+    }
+
     animationId = setInterval(draw, 1000 / 30);
     
     canvasStream = processCanvas.captureStream(30);

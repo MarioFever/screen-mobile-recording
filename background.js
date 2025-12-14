@@ -34,7 +34,7 @@ let timerInterval = null;
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === 'START_RECORDING_REQUEST') {
-    startCapture(message.tabId, message.showNotch, message.showFrame, message.recordMP4, message.recordWebM, message.bgStyle);
+    startCapture(message.tabId, message.showNotch, message.showFrame, message.recordMP4, message.recordWebM, message.bgStyle, 'recording');
     isRecording = true;
     recordingTabId = message.tabId;
     
@@ -53,6 +53,8 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
       chrome.action.setBadgeText({ text: `${mins}:${secs}` });
     }, 1000);
 
+  } else if (message.type === 'TAKE_SCREENSHOT_REQUEST') {
+    startCapture(message.tabId, message.showNotch, message.showFrame, false, false, message.bgStyle, 'screenshot');
   } else if (message.type === 'STOP_RECORDING_REQUEST') {
     stopRecording();
   } else if (message.type === 'GET_RECORDING_STATE') {
@@ -129,7 +131,7 @@ function injectLinkEnforcer(tabId) {
   }).catch(() => {});
 }
 
-async function startCapture(tabId, showNotch = true, showFrame = true, recordMP4 = true, recordWebM = true, bgStyle = 'transparent') {
+async function startCapture(tabId, showNotch = true, showFrame = true, recordMP4 = true, recordWebM = true, bgStyle = 'transparent', mode = 'recording') {
   try {
     // 1. Get tab info/dimensions via scripting
     const results = await chrome.scripting.executeScript({
@@ -179,12 +181,15 @@ async function startCapture(tabId, showNotch = true, showFrame = true, recordMP4
           showFrame: showFrame,
           recordMP4: recordMP4,
           recordWebM: recordWebM,
-          bgStyle: bgStyle
+          bgStyle: bgStyle,
+          mode: mode
         }
       });
       
       // Inject script to force links to open in same tab
-      injectLinkEnforcer(tabId);
+      if (mode === 'recording') {
+        injectLinkEnforcer(tabId);
+      }
       
     }, 500);
 

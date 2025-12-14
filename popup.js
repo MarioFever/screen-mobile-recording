@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   const startBtn = document.getElementById('start-btn');
+  const screenshotBtn = document.getElementById('screenshot-btn');
   const notchToggle = document.getElementById('notch-toggle');
   const frameToggle = document.getElementById('frame-toggle');
   const mp4Toggle = document.getElementById('mp4-toggle');
@@ -56,6 +57,8 @@ document.addEventListener('DOMContentLoaded', () => {
       startBtn.textContent = 'Stop Recording';
       startBtn.style.background = '#ff4757';
       
+      screenshotBtn.disabled = true;
+      screenshotBtn.style.opacity = 0.5;
       notchToggle.disabled = true; 
       frameToggle.disabled = true;
       mp4Toggle.disabled = true;
@@ -65,6 +68,8 @@ document.addEventListener('DOMContentLoaded', () => {
       startBtn.textContent = 'Start Recording';
       startBtn.style.background = '#00d4aa';
       
+      screenshotBtn.disabled = false;
+      screenshotBtn.style.opacity = 1;
       notchToggle.disabled = false;
       frameToggle.disabled = false;
       mp4Toggle.disabled = false;
@@ -72,6 +77,18 @@ document.addEventListener('DOMContentLoaded', () => {
       bgStyleSelect.disabled = false;
     }
   }
+
+  screenshotBtn.addEventListener('click', async () => {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    chrome.runtime.sendMessage({ 
+      type: 'TAKE_SCREENSHOT_REQUEST',
+      tabId: tab.id,
+      showNotch: notchToggle.checked,
+      showFrame: frameToggle.checked,
+      bgStyle: bgStyleSelect.value
+    });
+  });
 
   startBtn.addEventListener('click', async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
