@@ -38,6 +38,32 @@
            <input type="checkbox" id="frame-toggle" checked>
            <label for="frame-toggle">Show Device Frame</label>
          </div>
+
+         <div class="options-container" style="margin-top: 15px; flex-direction: column; align-items: flex-start; gap: 8px;">
+           <label style="opacity: 0.8; font-size: 13px;">Output Formats:</label>
+           <div style="display: flex; gap: 15px;">
+             <div style="display: flex; align-items: center; gap: 6px;">
+               <input type="checkbox" id="mp4-toggle" checked>
+               <label for="mp4-toggle">MP4</label>
+             </div>
+             <div style="display: flex; align-items: center; gap: 6px;">
+               <input type="checkbox" id="webm-toggle" checked>
+               <label for="webm-toggle">WebM (Transparent)</label>
+             </div>
+           </div>
+         </div>
+
+         <div class="options-container" style="margin-top: 15px; flex-direction: column; align-items: flex-start; gap: 8px;">
+            <label style="opacity: 0.8; font-size: 13px;">Background Style:</label>
+            <select id="bg-style" style="width: 100%; padding: 8px; border-radius: 4px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);">
+                <option style="background: #333; color: white;" value="transparent">Transparent (WebM only)</option>
+                <option style="background: #333; color: white;" value="transparent-force">Transparent (Force)</option>
+                <option style="background: #333; color: white;" value="#00FF00">Green Screen</option>
+                <option style="background: #333; color: white;" value="#0000FF">Blue Screen</option>
+                <option style="background: #333; color: white;" value="#FFFFFF">White</option>
+                <option style="background: #333; color: white;" value="#000000">Black</option>
+            </select>
+         </div>
       </div>
     </main>
 

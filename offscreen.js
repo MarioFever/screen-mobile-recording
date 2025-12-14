@@ -8,19 +8,38 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   }
 });
 
-let mediaRecorder;
-let recordedChunks = [];
+// Notify background that offscreen is ready to receive messages
+chrome.runtime.sendMessage({ type: 'OFFSCREEN_LOADED', target: 'background' });
+
+let recorders = []; // Array of MediaRecorder instances
 let sourceVideo;
 let processCanvas;
 let processContext;
 let animationId;
 let stream;
 let canvasStream;
+let cleanupTimeout;
 
 async function startRecording(data) {
-  const { streamId, width, height, devicePixelRatio, showNotch, showFrame } = data;
+  // Cancel any pending cleanup from previous session
+  if (cleanupTimeout) {
+    clearTimeout(cleanupTimeout);
+    cleanupTimeout = null;
+  }
   
-  const statusDiv = document.getElementById('status');
+  // Ensure previous stream is fully stopped
+  stopRecording();
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+  }
+  if (sourceVideo && sourceVideo.srcObject) {
+    sourceVideo.srcObject = null;
+  }
+  
+    const { streamId, width, height, devicePixelRatio, showNotch, showFrame, recordMP4, recordWebM, bgStyle } = data;
+    console.log('Starting recording with bgStyle:', bgStyle);
+  
+    const statusDiv = document.getElementById('status');
   statusDiv.textContent = 'Starting recording...';
 
   try {
@@ -39,7 +58,12 @@ async function startRecording(data) {
     await sourceVideo.play();
 
     processCanvas = document.getElementById('processCanvas');
+    // Ensure canvas is transparent at DOM level
+    processCanvas.style.background = 'transparent';
     processContext = processCanvas.getContext('2d', { alpha: true });
+
+    // Important: Fill with transparent first
+    processContext.clearRect(0, 0, processCanvas.width, processCanvas.height);
 
     let dpr = devicePixelRatio || 1;
     
@@ -49,17 +73,17 @@ async function startRecording(data) {
     const bezel = showFrame ? 20 : 0;
     const cornerRadius = showFrame ? 55 : 0;
     
-    // Adjust home indicator relative to width still? Or fixed?
-    // "homeIndicatorW" being 35% of width is probably fine for tablets too (iPad home bar is long).
     const homeIndicatorW = Math.round(screenLogicalW * 0.35);
     const homeIndicatorH = Math.round(5 * (dpr/3));
     
     const frameLogicalW = screenLogicalW + (bezel * 2);
     const frameLogicalH = screenLogicalH + (bezel * 2);
 
-    processCanvas.width = frameLogicalW * dpr;
-    processCanvas.height = frameLogicalH * dpr;
+    // Force even dimensions for video encoding stability
+    processCanvas.width = (Math.ceil(frameLogicalW * dpr) + 1) & ~1;
+    processCanvas.height = (Math.ceil(frameLogicalH * dpr) + 1) & ~1;
 
+    // --- Drawing Functions ---
     function roundRect(ctx, x, y, w, h, r) {
       if (w < 2 * r) r = w / 2;
       if (h < 2 * r) r = h / 2;
@@ -118,8 +142,10 @@ async function startRecording(data) {
     const colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
 
     const draw = () => {
-      if (sourceVideo.paused || sourceVideo.ended) return;
+      // Re-schedule immediately for next frame using requestAnimationFrame equivalent logic
+      // if using setInterval, no need to reschedule.
       
+      if (!sourceVideo || !sourceVideo.videoWidth) return;
       const videoWidth = sourceVideo.videoWidth;
       const videoHeight = sourceVideo.videoHeight;
       
@@ -137,7 +163,6 @@ async function startRecording(data) {
       const cropY = (videoHeight - cropH) / 2;
       
       // --- Sample Background Color ---
-      // Get color from the top-center of the actual video content
       colorCtx.drawImage(sourceVideo, cropX + (cropW/2), cropY, 1, 1, 0, 0, 1, 1);
       const [r, g, b] = colorCtx.getImageData(0, 0, 1, 1).data;
       const navColor = `rgb(${r}, ${g}, ${b})`;
@@ -152,7 +177,27 @@ async function startRecording(data) {
       const bezelSize = bezel * scale;
       const radius = cornerRadius * scale;
       
-      ctx.clearRect(0, 0, frameW, frameH);
+      // Clear the entire canvas explicitly
+      ctx.globalAlpha = 1.0;
+      ctx.globalCompositeOperation = 'source-over';
+      
+      if (bgStyle && bgStyle !== 'transparent' && bgStyle !== 'transparent-force') {
+          // Fill with solid color
+          ctx.fillStyle = bgStyle;
+          ctx.fillRect(0, 0, processCanvas.width, processCanvas.height);
+      } else {
+          // Transparent clearing
+          // Use destination-out for 'transparent-force' to be extra aggressive
+          if (bgStyle === 'transparent-force') {
+              ctx.globalCompositeOperation = 'destination-out';
+              ctx.fillStyle = '#000000';
+              ctx.fillRect(0, 0, processCanvas.width, processCanvas.height);
+              ctx.globalCompositeOperation = 'source-over';
+          } else {
+              ctx.clearRect(0, 0, processCanvas.width, processCanvas.height);
+          }
+      }
+
 
       // --- Botones Laterales (Silver) ---
       if (showFrame) {
@@ -189,8 +234,6 @@ async function startRecording(data) {
         ); 
         ctx.fill();
       } else {
-        // Transparent/Empty background if no frame, or just black?
-        // Let's clear it
         ctx.clearRect(0, 0, frameW, frameH);
       }
       
@@ -199,14 +242,13 @@ async function startRecording(data) {
       ctx.translate(bezelSize, bezelSize);
       
       const innerRadius = radius - (showFrame ? (bezelSize - (3.5 * scale)) : 0); 
-      // If no frame, radius is 0
       
       roundRect(ctx, 0, 0, screenW, screenH, showFrame ? innerRadius : 0);
       ctx.clip();
       
       const statusBarHeight = 50 * scale; 
       
-      // 1. Dibujar Fondo de Barra Superior (Color muestreado)
+      // 1. Dibujar Fondo de Barra Superior
       ctx.fillStyle = navColor; 
       ctx.fillRect(0, 0, screenW, statusBarHeight);
       
@@ -216,17 +258,10 @@ async function startRecording(data) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       
-      // Safety Zoom: Recortamos un 1% (0.99) para limpiar bordes, pero ANCLANDO ARRIBA
-      // para no cortar el header/menú de la web.
       const zoomFactor = 0.99; 
       const cleanCropW = cropW * zoomFactor;
       const cleanCropH = cropH * zoomFactor;
-      
-      // Centramos horizontalmente (recorta izq y derecha por igual)
       const cleanCropX = cropX + (cropW - cleanCropW) / 2;
-      
-      // Anclamos arriba (cleanCropY = cropY) para NO recortar nada del top.
-      // Todo el recorte vertical se hace abajo.
       const cleanCropY = cropY; 
 
       ctx.drawImage(
@@ -255,8 +290,7 @@ async function startRecording(data) {
 
       ctx.restore();
       
-      // --- Dynamic Island / Notch (Negro Puro) ---
-      // Solo si showNotch es true
+      // --- Dynamic Island / Notch ---
       if (showNotch) {
         const notchW = screenW * 0.3;
         const notchH = 35 * scale;
@@ -282,63 +316,155 @@ async function startRecording(data) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
       roundRect(ctx, hiX, hiY, hiW, hiH, hiH/2);
       ctx.fill();
+      
+      // Schedule next frame
+      // if (sourceVideo.requestVideoFrameCallback) {
+      //   sourceVideo.requestVideoFrameCallback(draw);
+      // }
     };
     
+    // Start drawing loop
+    // Use setInterval to ensure constant frame rate even if source is static
+    // This is crucial for MediaRecorder stability
     animationId = setInterval(draw, 1000 / 30);
     
     canvasStream = processCanvas.captureStream(30);
     
-    let mimeType = 'video/webm;codecs=vp9';
-    if (MediaRecorder.isTypeSupported('video/mp4')) {
-      mimeType = 'video/mp4';
-    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=h264')) {
-      mimeType = 'video/webm;codecs=h264';
+    // --- Recorder Setup ---
+    recorders = [];
+
+    // 1. MP4 Recorder (Default/Standard)
+    if (recordMP4) {
+      let mimeType = 'video/mp4'; 
+      // Check for MP4 support explicitly
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+          console.warn('MP4 not supported, falling back to WebM (h264)');
+          mimeType = 'video/webm;codecs=h264';
+      }
+      createAndStartRecorder(canvasStream, mimeType, 'mp4');
     }
 
-    mediaRecorder = new MediaRecorder(canvasStream, { 
-      mimeType: mimeType,
-      videoBitsPerSecond: 8000000 
-    });
-    recordedChunks = [];
-
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        recordedChunks.push(event.data);
+    // 2. WebM Recorder (Transparent)
+    if (recordWebM) {
+      // Prefer VP9 for alpha channel support
+      let mimeType = 'video/webm;codecs=vp9'; 
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'video/webm;codecs=vp8';
       }
-    };
-
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(recordedChunks, { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
       
-      chrome.runtime.sendMessage({
-        type: 'DOWNLOAD_RECORDING',
-        url: url,
-        filename: `mobile-recording-${new Date().toISOString().replace(/:/g, '-').split('.')[0]}.${ext}`
-      });
+      // Separate stream for WebM to avoid conflict with MP4 recorder if possible, 
+      // though sharing *should* work. 
+      // The issue might be sharing the SAME stream track for two recorders with different codecs?
+      // Let's create a new capture stream for the second recorder to be safe.
+      const webmStream = processCanvas.captureStream(30);
       
-      setTimeout(() => {
-        URL.revokeObjectURL(url);
-        clearInterval(animationId);
-        if (stream) stream.getTracks().forEach(track => track.stop());
-        if (canvasStream) canvasStream.getTracks().forEach(track => track.stop());
-        sourceVideo.srcObject = null;
-        statusDiv.textContent = 'Idle';
-      }, 5000);
-    };
+      if (MediaRecorder.isTypeSupported(mimeType)) {
+          createAndStartRecorder(webmStream, mimeType, 'webm');
+      } else {
+          console.error("WebM with VP9/VP8 not supported");
+      }
+    }
 
-    mediaRecorder.start();
     statusDiv.textContent = 'Recording...';
 
   } catch (err) {
     console.error('Error starting recording:', err);
     statusDiv.textContent = 'Error: ' + err.message;
+    chrome.runtime.sendMessage({ type: 'RECORDING_ERROR', error: err.message });
+  }
+}
+
+function createAndStartRecorder(stream, mimeType, extension) {
+  try {
+    const recorder = new MediaRecorder(stream, { 
+      mimeType: mimeType
+    });
+    
+    // Safety check: if onstop never fires, we might have an issue.
+    recorder.onerror = (e) => {
+        console.error(`Recorder error for ${extension}:`, e);
+        chrome.runtime.sendMessage({ type: 'RECORDING_ERROR', error: `Recorder error: ${e.error ? e.error.message : 'Unknown'}` });
+    };
+    
+    const chunks = [];
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) {
+        chunks.push(e.data);
+      }
+    };
+
+    recorder.onstop = () => {
+      // Sometimes onstop fires before ondataavailable for the last chunk
+      // We should be careful, but usually it's fine.
+      
+      if (chunks.length === 0) {
+        console.error(`No data chunks recorded for ${extension}`);
+        chrome.runtime.sendMessage({ type: 'RECORDING_ERROR', error: `No data recorded for ${extension}` });
+        return;
+      }
+      // Use a more generic type for the Blob to improve player compatibility
+      const blobType = extension === 'mp4' && mimeType === 'video/mp4' ? 'video/mp4' : 'video/webm';
+      const blob = new Blob(chunks, { type: blobType });
+      console.log(`Finalizing ${extension} recording: ${blob.size} bytes`);
+      
+      const url = URL.createObjectURL(blob);
+      
+      chrome.runtime.sendMessage({
+        type: 'DOWNLOAD_RECORDING',
+        url: url,
+        filename: `mobile-recording-${new Date().toISOString().replace(/:/g, '-').split('.')[0]}.${extension}`
+      });
+      
+      // Cleanup this specific URL later
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      
+      // Check if all recorders are finished to do global cleanup
+      checkCleanup();
+    };
+
+    recorder.start(); // Removed timeslice to prevent chunk fragmentation issues
+    recorders.push(recorder);
+    console.log(`Started recorder for ${extension} (${mimeType})`);
+  } catch (e) {
+    console.error(`Failed to create recorder for ${extension}:`, e);
   }
 }
 
 function stopRecording() {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
+  if (recorders.length > 0) {
+    recorders.forEach(recorder => {
+      if (recorder.state !== 'inactive') {
+        recorder.stop();
+      }
+    });
+  } else {
+    // If no recorders (maybe error occurred), just cleanup immediately
+    performCleanup();
   }
+}
+
+function checkCleanup() {
+  // If all recorders are inactive, perform global cleanup
+  const allStopped = recorders.every(r => r.state === 'inactive');
+  if (allStopped) {
+    // Give a small buffer for downloads to trigger
+    cleanupTimeout = setTimeout(performCleanup, 1000);
+  }
+}
+
+function performCleanup() {
+  if (animationId) clearInterval(animationId);
+  if (stream) stream.getTracks().forEach(track => track.stop());
+  if (canvasStream) canvasStream.getTracks().forEach(track => track.stop());
+  // We need to stop the tracks of any other streams created manually
+  // This is a bit of a leak if we don't track them, but for now the GC should handle it eventually 
+  // or we can add them to a list.
+  
+  if (sourceVideo) sourceVideo.srcObject = null;
+  
+  const statusDiv = document.getElementById('status');
+  if (statusDiv) statusDiv.textContent = 'Idle';
+  
+  recorders = [];
+  cleanupTimeout = null;
 }
