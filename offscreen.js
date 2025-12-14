@@ -69,10 +69,6 @@ async function startRecording(data) {
         if (source.readyState < 2) return; // Wait for metadata at least
         sourceWidth = source.videoWidth;
         sourceHeight = source.videoHeight;
-      } else if (source instanceof HTMLImageElement) {
-        if (!source.complete || !source.naturalWidth) return;
-        sourceWidth = source.naturalWidth;
-        sourceHeight = source.naturalHeight;
       } else {
          return;
       }
@@ -112,15 +108,14 @@ async function startRecording(data) {
       ctx.globalAlpha = 1.0;
       ctx.globalCompositeOperation = 'source-over';
       
-      if (bgStyle && bgStyle !== 'transparent' && bgStyle !== 'transparent-force' && mode !== 'screenshot') {
+      if (bgStyle && bgStyle !== 'transparent' && bgStyle !== 'transparent-force') {
           // Fill with solid color
           ctx.fillStyle = bgStyle;
           ctx.fillRect(0, 0, processCanvas.width, processCanvas.height);
       } else {
           // Transparent clearing
           // Use destination-out for 'transparent-force' to be extra aggressive
-          // Also force transparency for screenshots
-          if (bgStyle === 'transparent-force' || mode === 'screenshot') {
+          if (bgStyle === 'transparent-force') {
               ctx.globalCompositeOperation = 'destination-out';
               ctx.fillStyle = '#000000';
               ctx.fillRect(0, 0, processCanvas.width, processCanvas.height);
@@ -335,38 +330,6 @@ async function startRecording(data) {
       // if using setInterval, no need to reschedule.
       renderFrame(sourceVideo);
     };
-
-    function processScreenshot(imgElement) {
-        processCanvas = document.getElementById('processCanvas');
-        // Ensure transparent
-        processCanvas.style.background = 'transparent';
-        processContext = processCanvas.getContext('2d', { alpha: true });
-        
-        // Force clean slate
-        processContext.clearRect(0, 0, processCanvas.width, processCanvas.height);
-        
-        // Update dimensions to match the image + frame logic
-        processCanvas.width = (Math.ceil(frameLogicalW * dpr) + 1) & ~1;
-        processCanvas.height = (Math.ceil(frameLogicalH * dpr) + 1) & ~1;
-
-        // Render the image into the frame
-        renderFrame(imgElement);
-
-        processCanvas.toBlob((blob) => {
-            const url = URL.createObjectURL(blob);
-            chrome.runtime.sendMessage({
-                type: 'DOWNLOAD_RECORDING',
-                url: url,
-                filename: `mobile-screenshot-${new Date().toISOString().replace(/:/g, '-').split('.')[0]}.png`
-            });
-            
-            setTimeout(() => URL.revokeObjectURL(url), 10000);
-            
-            // Cleanup
-            statusDiv.textContent = 'Screenshot taken';
-            stopRecording(); // Ensures we clear any intervals/recorders if any
-        }, 'image/png');
-    }
     
     // Start drawing loop for Video
     animationId = setInterval(draw, 1000 / 30);

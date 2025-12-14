@@ -183,7 +183,7 @@ async function startCapture(tabId, showNotch = true, showFrame = true, recordMP4
         } catch (captureErr) {
           console.error('Screenshot capture failed:', captureErr);
         }
-      }, 500);
+      }, 100);
       return;
     }
 

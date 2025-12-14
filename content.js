@@ -241,8 +241,11 @@ async function processScreenshot(data) {
         filename: filename
       });
       
-      // Note: We can't revoke immediately as background needs to read it
-      // Let background handle cleanup or timeout here
+      // Revoke the object URL after a delay to allow download to start
+      // 1 minute is a safe buffer
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 60000);
     }, 'image/png');
 
   } catch (err) {
