@@ -38,9 +38,216 @@ async function startRecording(data) {
   
     const { streamId, width, height, devicePixelRatio, showNotch, showFrame, recordMP4, recordWebM, bgStyle, mode } = data;
     console.log('Starting capture with bgStyle:', bgStyle, 'Mode:', mode);
+
+    let dpr = devicePixelRatio || 1;
+    const screenLogicalW = width;
+    const screenLogicalH = height;
+    const bezel = showFrame ? 20 : 0;
+    const cornerRadius = showFrame ? 55 : 0;
+    const homeIndicatorW = Math.round(screenLogicalW * 0.35);
+    const homeIndicatorH = Math.round(5 * (dpr/3));
+    const frameLogicalW = screenLogicalW + (bezel * 2);
+    const frameLogicalH = screenLogicalH + (bezel * 2);
   
     const statusDiv = document.getElementById('status');
-    statusDiv.textContent = mode === 'screenshot' ? 'Taking screenshot...' : 'Starting recording...';
+    statusDiv.textContent = 'Starting recording...';
+
+    // Helper canvas for color sampling
+    const colorCanvas = new OffscreenCanvas(1, 1);
+    const colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
+    
+    // Abstracted Draw Logic to handle both Video and Image sources
+    const renderFrame = (source) => {
+      // Logic adapted from original draw function
+      if (!source) return;
+      
+      // Safety check for dimensions
+      let sourceWidth = 0;
+      let sourceHeight = 0;
+      
+      if (source instanceof HTMLVideoElement) {
+        if (source.readyState < 2) return; // Wait for metadata at least
+        sourceWidth = source.videoWidth;
+        sourceHeight = source.videoHeight;
+      } else if (source instanceof HTMLImageElement) {
+        if (!source.complete || !source.naturalWidth) return;
+        sourceWidth = source.naturalWidth;
+        sourceHeight = source.naturalHeight;
+      } else {
+         return;
+      }
+
+      if (!sourceWidth || !sourceHeight) return;
+      
+      const targetRatio = screenLogicalW / screenLogicalH;
+      const sourceRatio = sourceWidth / sourceHeight;
+      
+      let cropW, cropH;
+      if (sourceRatio > targetRatio) {
+        cropH = sourceHeight;
+        cropW = cropH * targetRatio;
+      } else {
+        cropW = sourceWidth;
+        cropH = cropW / targetRatio;
+      }
+      const cropX = (sourceWidth - cropW) / 2;
+      const cropY = (sourceHeight - cropH) / 2;
+      
+      // --- Sample Background Color ---
+      colorCtx.drawImage(source, cropX + (cropW/2), cropY, 1, 1, 0, 0, 1, 1);
+      const [r, g, b] = colorCtx.getImageData(0, 0, 1, 1).data;
+      const navColor = `rgb(${r}, ${g}, ${b})`;
+      
+      const ctx = processContext;
+      const scale = dpr;
+      
+      const frameW = frameLogicalW * scale;
+      const frameH = frameLogicalH * scale;
+      const screenW = screenLogicalW * scale;
+      const screenH = screenLogicalH * scale;
+      const bezelSize = bezel * scale;
+      const radius = cornerRadius * scale;
+      
+      // Clear the entire canvas explicitly
+      ctx.globalAlpha = 1.0;
+      ctx.globalCompositeOperation = 'source-over';
+      
+      if (bgStyle && bgStyle !== 'transparent' && bgStyle !== 'transparent-force' && mode !== 'screenshot') {
+          // Fill with solid color
+          ctx.fillStyle = bgStyle;
+          ctx.fillRect(0, 0, processCanvas.width, processCanvas.height);
+      } else {
+          // Transparent clearing
+          // Use destination-out for 'transparent-force' to be extra aggressive
+          // Also force transparency for screenshots
+          if (bgStyle === 'transparent-force' || mode === 'screenshot') {
+              ctx.globalCompositeOperation = 'destination-out';
+              ctx.fillStyle = '#000000';
+              ctx.fillRect(0, 0, processCanvas.width, processCanvas.height);
+              ctx.globalCompositeOperation = 'source-over';
+          } else {
+              ctx.clearRect(0, 0, processCanvas.width, processCanvas.height);
+          }
+      }
+
+      // --- Botones Laterales (Silver) ---
+      if (showFrame) {
+        ctx.fillStyle = '#D1D1D6';
+        roundRect(ctx, -2*scale, 100*scale, 6*scale, 20*scale, 2*scale);
+        roundRect(ctx, -2*scale, 140*scale, 6*scale, 45*scale, 2*scale);
+        roundRect(ctx, -2*scale, 200*scale, 6*scale, 45*scale, 2*scale);
+        roundRect(ctx, frameW - 4*scale, 160*scale, 6*scale, 70*scale, 2*scale);
+        ctx.fill();
+        
+        // --- Marco Exterior (Chasis Metálico Silver) ---
+        const grad = ctx.createLinearGradient(0, 0, frameW, 0);
+        grad.addColorStop(0, '#8E8E93');
+        grad.addColorStop(0.05, '#E5E5EA');
+        grad.addColorStop(0.2, '#D1D1D6');
+        grad.addColorStop(0.8, '#D1D1D6');
+        grad.addColorStop(0.95, '#E5E5EA');
+        grad.addColorStop(1, '#8E8E93');
+        
+        ctx.fillStyle = grad;
+        roundRect(ctx, 0, 0, frameW, frameH, radius + bezelSize/2); 
+        ctx.fill();
+        
+        // --- Bisel Negro Interno ---
+        const rimWidth = 3.5 * scale;
+        ctx.fillStyle = '#000000'; 
+        roundRect(
+          ctx, 
+          rimWidth, 
+          rimWidth, 
+          frameW - (rimWidth * 2), 
+          frameH - (rimWidth * 2), 
+          radius
+        ); 
+        ctx.fill();
+      } else {
+        ctx.clearRect(0, 0, frameW, frameH);
+      }
+      
+      // --- Pantalla ---
+      ctx.save();
+      ctx.translate(bezelSize, bezelSize);
+      
+      const innerRadius = radius - (showFrame ? (bezelSize - (3.5 * scale)) : 0); 
+      
+      roundRect(ctx, 0, 0, screenW, screenH, showFrame ? innerRadius : 0);
+      ctx.clip();
+      
+      const statusBarHeight = 50 * scale; 
+      
+      // 1. Dibujar Fondo de Barra Superior
+      ctx.fillStyle = navColor; 
+      ctx.fillRect(0, 0, screenW, statusBarHeight);
+      
+      // 2. Dibujar Video/Imagen
+      const videoDestH = screenH - statusBarHeight;
+      
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      
+      const zoomFactor = 0.99; 
+      const cleanCropW = cropW * zoomFactor;
+      const cleanCropH = cropH * zoomFactor;
+      const cleanCropX = cropX + (cropW - cleanCropW) / 2;
+      const cleanCropY = cropY; 
+
+      ctx.drawImage(
+        source, 
+        cleanCropX, cleanCropY, cleanCropW, cleanCropH, 
+        0, statusBarHeight, screenW, videoDestH 
+      );
+      
+      // --- Barra de Estado (Status Bar) ---
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      
+      const textY = statusBarHeight * 0.65;
+      
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = `600 ${15 * scale}px -apple-system, BlinkMacSystemFont, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(timeStr, 50 * scale, textY); 
+      
+      const iconY = textY - (11 * scale);
+      const rightMargin = screenW - (25 * scale);
+      
+      drawBattery(ctx, rightMargin - (25*scale), iconY, 22*scale, 11*scale);
+      drawWifi(ctx, rightMargin - (55*scale), iconY - (2*scale), 16*scale);
+      drawSignal(ctx, rightMargin - (80*scale), iconY, 17*scale, 11*scale);
+
+      ctx.restore();
+      
+      // --- Dynamic Island / Notch ---
+      if (showNotch) {
+        const notchW = screenW * 0.3;
+        const notchH = 35 * scale;
+        const notchX = (frameW - notchW) / 2;
+        const notchY = bezelSize + (12 * scale);
+        
+        ctx.fillStyle = '#000000';
+        roundRect(ctx, notchX, notchY, notchW, notchH, notchH/2);
+        ctx.fill();
+        
+        ctx.fillStyle = '#1A1A1A';
+        ctx.beginPath();
+        ctx.arc(notchX + notchW - (12*scale), notchY + notchH/2, 6*scale, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      // --- Home Indicator ---
+      const hiW = homeIndicatorW * scale;
+      const hiH = homeIndicatorH * scale;
+      const hiX = (frameW - hiW) / 2;
+      const hiY = frameH - bezelSize - (8 * scale);
+      
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      roundRect(ctx, hiX, hiY, hiW, hiH, hiH/2);
+      ctx.fill();
+    };
 
   try {
     stream = await navigator.mediaDevices.getUserMedia({
@@ -64,20 +271,6 @@ async function startRecording(data) {
 
     // Important: Fill with transparent first
     processContext.clearRect(0, 0, processCanvas.width, processCanvas.height);
-
-    let dpr = devicePixelRatio || 1;
-    
-    const screenLogicalW = width;
-    const screenLogicalH = height;
-
-    const bezel = showFrame ? 20 : 0;
-    const cornerRadius = showFrame ? 55 : 0;
-    
-    const homeIndicatorW = Math.round(screenLogicalW * 0.35);
-    const homeIndicatorH = Math.round(5 * (dpr/3));
-    
-    const frameLogicalW = screenLogicalW + (bezel * 2);
-    const frameLogicalH = screenLogicalH + (bezel * 2);
 
     // Force even dimensions for video encoding stability
     processCanvas.width = (Math.ceil(frameLogicalW * dpr) + 1) & ~1;
@@ -137,202 +330,28 @@ async function startRecording(data) {
         ctx.fill();
     }
 
-    // Helper canvas for color sampling
-    const colorCanvas = new OffscreenCanvas(1, 1);
-    const colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
-
     const draw = () => {
       // Re-schedule immediately for next frame using requestAnimationFrame equivalent logic
       // if using setInterval, no need to reschedule.
-      
-      if (!sourceVideo || !sourceVideo.videoWidth) return;
-      const videoWidth = sourceVideo.videoWidth;
-      const videoHeight = sourceVideo.videoHeight;
-      
-      const targetRatio = screenLogicalW / screenLogicalH;
-      const videoRatio = videoWidth / videoHeight;
-      let cropW, cropH;
-      if (videoRatio > targetRatio) {
-        cropH = videoHeight;
-        cropW = cropH * targetRatio;
-      } else {
-        cropW = videoWidth;
-        cropH = cropW / targetRatio;
-      }
-      const cropX = (videoWidth - cropW) / 2;
-      const cropY = (videoHeight - cropH) / 2;
-      
-      // --- Sample Background Color ---
-      colorCtx.drawImage(sourceVideo, cropX + (cropW/2), cropY, 1, 1, 0, 0, 1, 1);
-      const [r, g, b] = colorCtx.getImageData(0, 0, 1, 1).data;
-      const navColor = `rgb(${r}, ${g}, ${b})`;
-      
-      const ctx = processContext;
-      const scale = dpr;
-      
-      const frameW = frameLogicalW * scale;
-      const frameH = frameLogicalH * scale;
-      const screenW = screenLogicalW * scale;
-      const screenH = screenLogicalH * scale;
-      const bezelSize = bezel * scale;
-      const radius = cornerRadius * scale;
-      
-      // Clear the entire canvas explicitly
-      ctx.globalAlpha = 1.0;
-      ctx.globalCompositeOperation = 'source-over';
-      
-      if (bgStyle && bgStyle !== 'transparent' && bgStyle !== 'transparent-force' && mode !== 'screenshot') {
-          // Fill with solid color
-          ctx.fillStyle = bgStyle;
-          ctx.fillRect(0, 0, processCanvas.width, processCanvas.height);
-      } else {
-          // Transparent clearing
-          // Use destination-out for 'transparent-force' to be extra aggressive
-          // Also force transparency for screenshots
-          if (bgStyle === 'transparent-force' || mode === 'screenshot') {
-              ctx.globalCompositeOperation = 'destination-out';
-              ctx.fillStyle = '#000000';
-              ctx.fillRect(0, 0, processCanvas.width, processCanvas.height);
-              ctx.globalCompositeOperation = 'source-over';
-          } else {
-              ctx.clearRect(0, 0, processCanvas.width, processCanvas.height);
-          }
-      }
-
-
-      // --- Botones Laterales (Silver) ---
-      if (showFrame) {
-        ctx.fillStyle = '#D1D1D6';
-        roundRect(ctx, -2*scale, 100*scale, 6*scale, 20*scale, 2*scale);
-        roundRect(ctx, -2*scale, 140*scale, 6*scale, 45*scale, 2*scale);
-        roundRect(ctx, -2*scale, 200*scale, 6*scale, 45*scale, 2*scale);
-        roundRect(ctx, frameW - 4*scale, 160*scale, 6*scale, 70*scale, 2*scale);
-        ctx.fill();
-        
-        // --- Marco Exterior (Chasis Metálico Silver) ---
-        const grad = ctx.createLinearGradient(0, 0, frameW, 0);
-        grad.addColorStop(0, '#8E8E93');
-        grad.addColorStop(0.05, '#E5E5EA');
-        grad.addColorStop(0.2, '#D1D1D6');
-        grad.addColorStop(0.8, '#D1D1D6');
-        grad.addColorStop(0.95, '#E5E5EA');
-        grad.addColorStop(1, '#8E8E93');
-        
-        ctx.fillStyle = grad;
-        roundRect(ctx, 0, 0, frameW, frameH, radius + bezelSize/2); 
-        ctx.fill();
-        
-        // --- Bisel Negro Interno ---
-        const rimWidth = 3.5 * scale;
-        ctx.fillStyle = '#000000'; 
-        roundRect(
-          ctx, 
-          rimWidth, 
-          rimWidth, 
-          frameW - (rimWidth * 2), 
-          frameH - (rimWidth * 2), 
-          radius
-        ); 
-        ctx.fill();
-      } else {
-        ctx.clearRect(0, 0, frameW, frameH);
-      }
-      
-      // --- Pantalla ---
-      ctx.save();
-      ctx.translate(bezelSize, bezelSize);
-      
-      const innerRadius = radius - (showFrame ? (bezelSize - (3.5 * scale)) : 0); 
-      
-      roundRect(ctx, 0, 0, screenW, screenH, showFrame ? innerRadius : 0);
-      ctx.clip();
-      
-      const statusBarHeight = 50 * scale; 
-      
-      // 1. Dibujar Fondo de Barra Superior
-      ctx.fillStyle = navColor; 
-      ctx.fillRect(0, 0, screenW, statusBarHeight);
-      
-      // 2. Dibujar Video
-      const videoDestH = screenH - statusBarHeight;
-      
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      
-      const zoomFactor = 0.99; 
-      const cleanCropW = cropW * zoomFactor;
-      const cleanCropH = cropH * zoomFactor;
-      const cleanCropX = cropX + (cropW - cleanCropW) / 2;
-      const cleanCropY = cropY; 
-
-      ctx.drawImage(
-        sourceVideo, 
-        cleanCropX, cleanCropY, cleanCropW, cleanCropH, 
-        0, statusBarHeight, screenW, videoDestH 
-      );
-      
-      // --- Barra de Estado (Status Bar) ---
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-      
-      const textY = statusBarHeight * 0.65;
-      
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = `600 ${15 * scale}px -apple-system, BlinkMacSystemFont, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillText(timeStr, 50 * scale, textY); 
-      
-      const iconY = textY - (11 * scale);
-      const rightMargin = screenW - (25 * scale);
-      
-      drawBattery(ctx, rightMargin - (25*scale), iconY, 22*scale, 11*scale);
-      drawWifi(ctx, rightMargin - (55*scale), iconY - (2*scale), 16*scale);
-      drawSignal(ctx, rightMargin - (80*scale), iconY, 17*scale, 11*scale);
-
-      ctx.restore();
-      
-      // --- Dynamic Island / Notch ---
-      if (showNotch) {
-        const notchW = screenW * 0.3;
-        const notchH = 35 * scale;
-        const notchX = (frameW - notchW) / 2;
-        const notchY = bezelSize + (12 * scale);
-        
-        ctx.fillStyle = '#000000';
-        roundRect(ctx, notchX, notchY, notchW, notchH, notchH/2);
-        ctx.fill();
-        
-        ctx.fillStyle = '#1A1A1A';
-        ctx.beginPath();
-        ctx.arc(notchX + notchW - (12*scale), notchY + notchH/2, 6*scale, 0, Math.PI*2);
-        ctx.fill();
-      }
-
-      // --- Home Indicator ---
-      const hiW = homeIndicatorW * scale;
-      const hiH = homeIndicatorH * scale;
-      const hiX = (frameW - hiW) / 2;
-      const hiY = frameH - bezelSize - (8 * scale);
-      
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-      roundRect(ctx, hiX, hiY, hiW, hiH, hiH/2);
-      ctx.fill();
-      
-      // Schedule next frame
-      // if (sourceVideo.requestVideoFrameCallback) {
-      //   sourceVideo.requestVideoFrameCallback(draw);
-      // }
+      renderFrame(sourceVideo);
     };
-    
-    // Start drawing loop
-    // Use setInterval to ensure constant frame rate even if source is static
-    // This is crucial for MediaRecorder stability
-    
-    if (mode === 'screenshot') {
-      // Wait a bit for the video to actually have a frame
-      setTimeout(() => {
-        draw();
+
+    function processScreenshot(imgElement) {
+        processCanvas = document.getElementById('processCanvas');
+        // Ensure transparent
+        processCanvas.style.background = 'transparent';
+        processContext = processCanvas.getContext('2d', { alpha: true });
         
+        // Force clean slate
+        processContext.clearRect(0, 0, processCanvas.width, processCanvas.height);
+        
+        // Update dimensions to match the image + frame logic
+        processCanvas.width = (Math.ceil(frameLogicalW * dpr) + 1) & ~1;
+        processCanvas.height = (Math.ceil(frameLogicalH * dpr) + 1) & ~1;
+
+        // Render the image into the frame
+        renderFrame(imgElement);
+
         processCanvas.toBlob((blob) => {
             const url = URL.createObjectURL(blob);
             chrome.runtime.sendMessage({
@@ -345,14 +364,11 @@ async function startRecording(data) {
             
             // Cleanup
             statusDiv.textContent = 'Screenshot taken';
-            stopRecording();
-            
+            stopRecording(); // Ensures we clear any intervals/recorders if any
         }, 'image/png');
-      }, 500); // 500ms delay to ensure frame is ready
-      
-      return; 
     }
-
+    
+    // Start drawing loop for Video
     animationId = setInterval(draw, 1000 / 30);
     
     canvasStream = processCanvas.captureStream(30);

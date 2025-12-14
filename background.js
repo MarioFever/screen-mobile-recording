@@ -148,13 +148,50 @@ async function startCapture(tabId, showNotch = true, showFrame = true, recordMP4
     const dimensions = results[0].result;
     console.log('Detected dimensions:', dimensions);
     
-    // 2. Get Media Stream ID
+    // 3. Get Media Stream ID OR Screenshot
+    // Use captureVisibleTab for screenshots
+    if (mode === 'screenshot') {
+      setTimeout(async () => {
+        try {
+          // Get the windowId from the tab
+          let windowId = chrome.windows.WINDOW_ID_CURRENT;
+          try {
+            const tab = await chrome.tabs.get(tabId);
+            if (tab && tab.windowId) {
+              windowId = tab.windowId;
+            }
+          } catch (e) {
+            console.warn('Could not get tab info', e);
+          }
+
+          const screenshotUrl = await chrome.tabs.captureVisibleTab(windowId, { format: 'png' });
+          console.log('Screenshot captured, sending to content script');
+          
+          // Send to Content Script in the ACTIVE TAB
+          chrome.tabs.sendMessage(tabId, {
+            type: 'PROCESS_SCREENSHOT',
+            data: {
+              screenshotUrl: screenshotUrl,
+              width: dimensions.width,
+              height: dimensions.height,
+              devicePixelRatio: dimensions.devicePixelRatio,
+              showNotch: showNotch,
+              showFrame: showFrame,
+              bgStyle: bgStyle
+            }
+          });
+        } catch (captureErr) {
+          console.error('Screenshot capture failed:', captureErr);
+        }
+      }, 500);
+      return;
+    }
+
     const streamId = await chrome.tabCapture.getMediaStreamId({
       targetTabId: tabId
     });
 
-    // 3. Setup Offscreen Doc (Resetting it to ensure fresh state)
-    // Check if offscreen exists and close it to ensure fresh state
+    // 4. Setup Offscreen Doc (Only needed for recording now)
     const existingContexts = await chrome.runtime.getContexts({
       contextTypes: ['OFFSCREEN_DOCUMENT']
     });
@@ -163,10 +200,9 @@ async function startCapture(tabId, showNotch = true, showFrame = true, recordMP4
       await chrome.offscreen.closeDocument();
     }
     
-    // Create fresh document
     await setupOffscreenDocument('offscreen.html');
 
-    // 4. Send start message to offscreen
+    // 5. Send start message to offscreen
     // Small buffer to ensure message listener is fully bound if just created
     setTimeout(() => {
       chrome.runtime.sendMessage({
